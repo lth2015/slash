@@ -1,0 +1,12 @@
+cases:
+  - name: "happy path"
+    input: "/cluster get event --ns api"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 2
+      outputs_row0:
+        type: "Warning"
+        reason: "FailedScheduling"

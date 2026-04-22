@@ -1,0 +1,16 @@
+{
+  "SecurityGroups": [
+    {
+      "GroupId": "sg-0abc",
+      "GroupName": "web-public",
+      "VpcId": "vpc-01",
+      "Description": "Public ALB ingress"
+    },
+    {
+      "GroupId": "sg-0def",
+      "GroupName": "db-private",
+      "VpcId": "vpc-01",
+      "Description": "RDS private access"
+    }
+  ]
+}

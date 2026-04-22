@@ -1,0 +1,6 @@
+{
+  "Vpcs": [
+    {"VpcId": "vpc-01", "CidrBlock": "10.0.0.0/16", "State": "available", "IsDefault": false},
+    {"VpcId": "vpc-02", "CidrBlock": "172.31.0.0/16", "State": "available", "IsDefault": true}
+  ]
+}

@@ -1,0 +1,12 @@
+cases:
+  - name: "unpin all"
+    input: "/ctx unpin all"
+    expect:
+      state: "ok"
+      body_equals:
+        skill_id: "ctx.unpin"
+
+  - name: "unpin single kind"
+    input: "/ctx unpin k8s"
+    expect:
+      state: "ok"

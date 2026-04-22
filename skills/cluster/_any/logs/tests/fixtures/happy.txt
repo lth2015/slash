@@ -1,0 +1,5 @@
+2026-04-22T10:01:02.123Z INFO  server listening on :8080
+2026-04-22T10:01:05.456Z INFO  GET /healthz 200 1ms
+2026-04-22T10:01:06.789Z WARN  slow query took 542ms
+2026-04-22T10:01:07.000Z ERROR upstream timeout talking to db-primary
+2026-04-22T10:01:12.345Z INFO  GET /healthz 200 0ms

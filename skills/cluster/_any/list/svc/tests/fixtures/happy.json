@@ -1,0 +1,14 @@
+{
+  "items": [
+    {
+      "metadata": {"name": "web", "namespace": "api", "creationTimestamp": "2026-04-10T00:00:00Z"},
+      "spec": {"type": "LoadBalancer", "clusterIP": "10.96.42.7"},
+      "status": {"loadBalancer": {"ingress": [{"hostname": "web-abc.elb.amazonaws.com"}]}}
+    },
+    {
+      "metadata": {"name": "worker", "namespace": "api", "creationTimestamp": "2026-04-11T00:00:00Z"},
+      "spec": {"type": "ClusterIP", "clusterIP": "10.96.42.8"},
+      "status": {"loadBalancer": {}}
+    }
+  ]
+}

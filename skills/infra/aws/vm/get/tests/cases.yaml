@@ -1,0 +1,10 @@
+cases:
+  - name: "happy path"
+    input: "/infra aws vm get i-0a1b2c3d"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      body_equals:
+        skill_id: "infra.aws.vm.get"

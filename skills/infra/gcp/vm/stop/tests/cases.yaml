@@ -1,0 +1,8 @@
+cases:
+  - name: "danger plan staged"
+    input: "/infra gcp vm stop web-1 --zone us-central1-a --reason \"end of day\""
+    expect:
+      state: "awaiting_approval"
+      danger: true
+      profile_name: "harness"
+      has_rollback_command: true   # rollback -> /infra gcp vm start ...

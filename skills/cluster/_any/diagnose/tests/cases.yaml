@@ -1,0 +1,13 @@
+cases:
+  - name: "aggregate: describe + events + logs"
+    # Each sub-step invokes cluster.* read skills; all share the same mock.
+    # A plain text fixture is enough — the sub-skills only care about exit 0
+    # for the describe/event/logs read paths.
+    input: "/cluster diagnose web-abc --ns api"
+    mock:
+      stdout: "sub-ok.txt"
+      exit: 0
+    expect:
+      state: "ok"
+      body_equals:
+        skill_id: "cluster.diagnose"

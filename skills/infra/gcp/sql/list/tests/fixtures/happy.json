@@ -1,0 +1,16 @@
+[
+  {
+    "name": "prod-pg-01",
+    "databaseVersion": "POSTGRES_16",
+    "settings": {"tier": "db-custom-4-16384"},
+    "state": "RUNNABLE",
+    "region": "us-central1"
+  },
+  {
+    "name": "staging-pg-01",
+    "databaseVersion": "POSTGRES_16",
+    "settings": {"tier": "db-custom-2-8192"},
+    "state": "RUNNABLE",
+    "region": "us-central1"
+  }
+]

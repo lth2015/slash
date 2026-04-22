@@ -1,0 +1,12 @@
+cases:
+  - name: "happy path"
+    input: "/infra aws vpc list --region us-east-1"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 2
+      outputs_row0:
+        VpcId: "vpc-01"
+        State: "available"

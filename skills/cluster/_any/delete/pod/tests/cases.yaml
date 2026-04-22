@@ -1,0 +1,8 @@
+cases:
+  - name: "danger plan staged"
+    input: "/cluster delete pod web-abc --ns api --reason cleanup"
+    expect:
+      state: "awaiting_approval"
+      danger: true
+      profile_name: "harness"
+      has_rollback_command: false   # rollback is prose (pod may be controller-managed)

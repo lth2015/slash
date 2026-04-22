@@ -1,0 +1,12 @@
+cases:
+  - name: "pin k8s with critical tier"
+    input: "/ctx pin k8s prod --tier critical"
+    expect:
+      state: "ok"
+      body_equals:
+        skill_id: "ctx.pin"
+
+  - name: "pin aws with default safe tier"
+    input: "/ctx pin aws default"
+    expect:
+      state: "ok"

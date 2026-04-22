@@ -1,0 +1,12 @@
+cases:
+  - name: "queries local audit.jsonl"
+    input: "/ops audit logs --since 1d"
+    expect:
+      state: "ok"
+      body_equals:
+        skill_id: "ops.audit.logs"
+
+  - name: "no filters"
+    input: "/ops audit logs"
+    expect:
+      state: "ok"

@@ -1,0 +1,12 @@
+cases:
+  - name: "happy path"
+    input: "/infra gcp sql list"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 2
+      outputs_row0:
+        name: "prod-pg-01"
+        state: "RUNNABLE"

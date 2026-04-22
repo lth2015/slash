@@ -1,0 +1,16 @@
+{
+  "Contents": [
+    {
+      "Key": "data/2026/04/events.parquet",
+      "Size": 1048576,
+      "StorageClass": "STANDARD",
+      "LastModified": "2026-04-22T10:00:00.000Z"
+    },
+    {
+      "Key": "data/2026/04/manifest.json",
+      "Size": 512,
+      "StorageClass": "STANDARD",
+      "LastModified": "2026-04-22T10:00:02.000Z"
+    }
+  ]
+}

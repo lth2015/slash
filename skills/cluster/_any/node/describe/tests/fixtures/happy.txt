@@ -1,0 +1,13 @@
+Name:               ip-10-0-1-10
+Roles:              control-plane
+Labels:             node-role.kubernetes.io/control-plane=
+Conditions:
+  Type             Status  Reason
+  Ready            True    KubeletReady
+Capacity:
+  cpu:             4
+  memory:          16Gi
+Allocated resources:
+  cpu:             800m
+  memory:          2Gi
+Events:            <none>

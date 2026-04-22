@@ -1,0 +1,20 @@
+cases:
+  - name: "happy path"
+    input: "/infra aws s3 ls prod-artifacts"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 2
+      outputs_row0:
+        Key: "data/2026/04/events.parquet"
+
+  - name: "with prefix"
+    input: "/infra aws s3 ls prod-artifacts --prefix data/ --max 50"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 2

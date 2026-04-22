@@ -1,0 +1,7 @@
+cases:
+  - name: "searches audit by target substring"
+    input: "/ops diagnose scale"
+    expect:
+      state: "ok"
+      body_equals:
+        skill_id: "ops.diagnose"

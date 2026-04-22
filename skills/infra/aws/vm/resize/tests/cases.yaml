@@ -1,0 +1,13 @@
+cases:
+  - name: "danger plan staged with before=t3.medium"
+    input: "/infra aws vm resize i-0abc --type m5.large --reason \"capacity upgrade\""
+    mock:
+      stdout: "instance-type.txt"
+      exit: 0
+    expect:
+      state: "awaiting_approval"
+      danger: true
+      profile_name: "harness"
+      has_before: true
+      has_after: true
+      has_rollback_command: true   # /infra aws vm resize ... --type t3.medium ... rollback

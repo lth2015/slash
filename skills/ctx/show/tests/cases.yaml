@@ -1,0 +1,7 @@
+cases:
+  - name: "returns current pin snapshot"
+    input: "/ctx show"
+    expect:
+      state: "ok"
+      body_equals:
+        skill_id: "ctx.show"

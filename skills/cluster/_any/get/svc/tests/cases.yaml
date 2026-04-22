@@ -1,0 +1,10 @@
+cases:
+  - name: "happy path"
+    input: "/cluster get svc web --ns api"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      body_equals:
+        skill_id: "cluster.get.svc"

@@ -1,0 +1,10 @@
+cases:
+  - name: "plan staged"
+    input: "/cluster rollout restart web --ns api --reason \"pod memory leak\""
+    expect:
+      state: "awaiting_approval"
+      danger: false
+      profile_name: "harness"
+      has_before: false
+      has_after: false
+      has_rollback_command: false

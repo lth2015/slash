@@ -1,0 +1,13 @@
+cases:
+  - name: "danger plan staged with before=running"
+    input: "/infra aws vm stop i-0abc --reason \"decommission for the weekend\""
+    mock:
+      stdout: "state-running.txt"
+      exit: 0
+    expect:
+      state: "awaiting_approval"
+      danger: true
+      profile_name: "harness"
+      has_before: true
+      has_after: true
+      has_rollback_command: true

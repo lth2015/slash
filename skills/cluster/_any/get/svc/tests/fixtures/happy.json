@@ -1,0 +1,10 @@
+{
+  "kind": "Service",
+  "apiVersion": "v1",
+  "metadata": {"name": "web", "namespace": "api"},
+  "spec": {
+    "type": "ClusterIP",
+    "clusterIP": "10.96.42.7",
+    "ports": [{"port": 80, "targetPort": 8080, "protocol": "TCP"}]
+  }
+}

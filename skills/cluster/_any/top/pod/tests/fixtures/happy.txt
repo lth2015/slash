@@ -1,0 +1,3 @@
+web-59d8c-abc     120m   64Mi
+web-59d8c-xyz      98m   71Mi
+worker-abc        340m  182Mi

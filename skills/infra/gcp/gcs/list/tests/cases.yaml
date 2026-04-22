@@ -1,0 +1,11 @@
+cases:
+  - name: "happy path"
+    input: "/infra gcp gcs list"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 2
+      outputs_row0:
+        name: "prod-artifacts-gcp"

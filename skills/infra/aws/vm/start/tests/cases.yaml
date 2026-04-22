@@ -1,0 +1,13 @@
+cases:
+  - name: "plan staged with before=stopped"
+    input: "/infra aws vm start i-0abc --reason \"dev instance\""
+    mock:
+      stdout: "state-stopped.txt"
+      exit: 0
+    expect:
+      state: "awaiting_approval"
+      danger: false
+      profile_name: "harness"
+      has_before: true
+      has_after: true
+      has_rollback_command: true

@@ -1,0 +1,15 @@
+cases:
+  - name: "danger plan staged · no failover"
+    input: "/infra aws rds reboot prod-orders --reason \"apply parameter group\""
+    expect:
+      state: "awaiting_approval"
+      danger: true
+      profile_name: "harness"
+      has_rollback_command: false   # reboot is not invertible
+
+  - name: "danger plan staged · forced failover"
+    input: "/infra aws rds reboot prod-orders --force-failover true --reason \"multi-az flip\""
+    expect:
+      state: "awaiting_approval"
+      danger: true
+      has_rollback_command: false

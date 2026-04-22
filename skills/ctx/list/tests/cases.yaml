@@ -1,0 +1,7 @@
+cases:
+  - name: "reads local OS config without cloud calls"
+    input: "/ctx list"
+    expect:
+      state: "ok"
+      body_equals:
+        skill_id: "ctx.list"

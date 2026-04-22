@@ -1,0 +1,8 @@
+cases:
+  - name: "plan staged"
+    input: "/infra aws ebs snapshot vol-0abc --desc \"nightly backup\" --reason \"scheduled\""
+    expect:
+      state: "awaiting_approval"
+      danger: false
+      profile_name: "harness"
+      has_rollback_command: false   # snapshot creation is not invertible

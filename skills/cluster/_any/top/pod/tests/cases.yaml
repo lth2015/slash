@@ -1,0 +1,9 @@
+cases:
+  - name: "happy path"
+    input: "/cluster top pod --ns api"
+    mock:
+      stdout: "happy.txt"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 3

@@ -1,0 +1,10 @@
+cases:
+  - name: "danger plan staged"
+    input: "/cluster node drain ip-10-0-0-1 --reason \"kernel upgrade\""
+    expect:
+      state: "awaiting_approval"
+      danger: true
+      profile_name: "harness"
+      has_before: false
+      has_after: false
+      has_rollback_command: true    # rollback -> uncordon ip-10-0-0-1

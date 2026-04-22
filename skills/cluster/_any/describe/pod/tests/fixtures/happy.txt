@@ -1,0 +1,11 @@
+Name:         web-59d8c-abc
+Namespace:    api
+Node:         ip-10-0-1-42/10.0.1.42
+Start Time:   Wed, 22 Apr 2026 10:00:00 +0000
+Status:       Running
+IP:           10.42.0.17
+Containers:
+  web:
+    Image:    nginx:1.27
+    State:    Running
+Events:       <none>

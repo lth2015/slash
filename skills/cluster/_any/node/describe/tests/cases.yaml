@@ -1,0 +1,10 @@
+cases:
+  - name: "happy path"
+    input: "/cluster node describe ip-10-0-1-10"
+    mock:
+      stdout: "happy.txt"
+      exit: 0
+    expect:
+      state: "ok"
+      body_equals:
+        skill_id: "cluster.node.describe"
