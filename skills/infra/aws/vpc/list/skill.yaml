@@ -1,0 +1,37 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.vpc.list
+  name: "List VPCs"
+  description: "List VPCs in a region with CIDR, state, and default-flag."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [vpc], verb: list }
+  mode: read
+  timeout: 30s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+
+  bash:
+    argv:
+      - aws
+      - ec2
+      - describe-vpcs
+      - --region
+      - "${region}"
+      - --output
+      - json
+
+  output:
+    parse: json
+    path: "Vpcs[]"
+    kind: table
+    columns:
+      - { key: VpcId,     label: "ID" }
+      - { key: CidrBlock, label: "CIDR" }
+      - { key: State,     label: "State", renderer: state-badge }
+      - { key: IsDefault, label: "Default" }

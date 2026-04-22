@@ -1,0 +1,35 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.get.svc
+  name: "Get a Service"
+  description: "Fetch one Service as raw JSON — spec, ports, selector, cluster IP."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [get], verb: svc }
+  mode: read
+  timeout: 15s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: name, type: string, positional: true, required: true }
+    - { name: ns,   flag: --ns,   type: string, required: true }
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - service
+      - "${name}"
+      - -o
+      - json
+
+  output:
+    parse: json
+    kind: object

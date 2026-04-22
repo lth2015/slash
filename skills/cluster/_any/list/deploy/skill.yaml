@@ -1,0 +1,44 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.list.deploy
+  name: "List Deployments"
+  description: "List Deployments in --ns with replica / available counts and age."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [list], verb: deploy }
+  mode: read
+  timeout: 20s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: ns,       flag: --ns, type: string, required: true }
+    - { name: selector, flag: --selector, type: string }
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - deployments
+      - -o
+      - json
+    expand:
+      - when: selector
+        as: ["-l", "${value}"]
+
+  output:
+    parse: json
+    path: "items[]"
+    kind: table
+    columns:
+      - { key: metadata.name,                    label: "Deployment" }
+      - { key: spec.replicas,                    label: "Desired" }
+      - { key: status.readyReplicas,             label: "Ready", fallback: "0" }
+      - { key: status.updatedReplicas,           label: "Updated", fallback: "0" }
+      - { key: metadata.creationTimestamp,       label: "Age", renderer: relative-time }

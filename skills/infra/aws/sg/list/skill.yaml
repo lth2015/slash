@@ -1,0 +1,41 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.sg.list
+  name: "List security groups"
+  description: "List Security Groups in a region with VPC, name, and description."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [sg], verb: list }
+  mode: read
+  timeout: 30s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+    - { name: vpc,    flag: --vpc,    type: string }
+
+  bash:
+    argv:
+      - aws
+      - ec2
+      - describe-security-groups
+      - --region
+      - "${region}"
+      - --output
+      - json
+    expand:
+      - when: vpc
+        as: ["--filters", "Name=vpc-id,Values=${value}"]
+
+  output:
+    parse: json
+    path: "SecurityGroups[]"
+    kind: table
+    columns:
+      - { key: GroupId,     label: "ID" }
+      - { key: GroupName,   label: "Name" }
+      - { key: VpcId,       label: "VPC" }
+      - { key: Description, label: "Description" }

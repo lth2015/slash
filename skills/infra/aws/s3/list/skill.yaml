@@ -1,0 +1,32 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.s3.list
+  name: "List S3 buckets"
+  description: "List every S3 bucket in the account with creation date."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [s3], verb: list }
+  mode: read
+  timeout: 30s
+  profile: { kind: aws, required: true }
+
+  args: []
+
+  bash:
+    argv:
+      - aws
+      - s3api
+      - list-buckets
+      - --output
+      - json
+
+  output:
+    parse: json
+    path: "Buckets[]"
+    kind: table
+    columns:
+      - { key: Name,         label: "Bucket" }
+      - { key: CreationDate, label: "Created", renderer: relative-time }

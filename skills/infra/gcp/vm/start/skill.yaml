@@ -1,0 +1,49 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.gcp.vm.start
+  name: "Start GCE instance"
+  description: "Start a stopped GCE instance. Billing resumes; ephemeral IP may change."
+  version: 0.1.0
+  labels: { stability: beta, risk: medium }
+
+spec:
+  command: { namespace: infra, target: gcp, noun: [vm], verb: start }
+  mode: write
+  danger: false
+  approvers: 1
+  timeout: 120s
+  profile: { kind: gcp, required: true }
+
+  args:
+    - { name: name,   type: string, positional: true, required: true }
+    - { name: zone,   flag: --zone, type: string, required: true }
+    - { name: reason, flag: --reason, type: string, required: true }
+
+  preflight:
+    argv:
+      - gcloud
+      - compute
+      - instances
+      - describe
+      - "${name}"
+      - --zone
+      - "${zone}"
+      - --format=json
+
+  bash:
+    argv:
+      - gcloud
+      - compute
+      - instances
+      - start
+      - "${name}"
+      - --zone
+      - "${zone}"
+      - --quiet
+
+  rollback: "/infra gcp vm stop ${name} --zone ${zone} --reason \"rollback start\""
+
+  output:
+    parse: text
+    kind: object

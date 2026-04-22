@@ -1,0 +1,49 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.gcp.vm.reboot
+  name: "Reset GCE instance"
+  description: "Hard reset a GCE instance — faster than stop+start, preserves IP and disks."
+  version: 0.1.0
+  labels: { stability: beta, risk: medium }
+
+spec:
+  command: { namespace: infra, target: gcp, noun: [vm], verb: reboot }
+  mode: write
+  danger: false
+  approvers: 1
+  timeout: 90s
+  profile: { kind: gcp, required: true }
+
+  args:
+    - { name: name,   type: string, positional: true, required: true }
+    - { name: zone,   flag: --zone, type: string, required: true }
+    - { name: reason, flag: --reason, type: string, required: true }
+
+  preflight:
+    argv:
+      - gcloud
+      - compute
+      - instances
+      - describe
+      - "${name}"
+      - --zone
+      - "${zone}"
+      - --format=json
+
+  bash:
+    argv:
+      - gcloud
+      - compute
+      - instances
+      - reset
+      - "${name}"
+      - --zone
+      - "${zone}"
+      - --quiet
+
+  rollback: "Reset cannot be directly undone; monitor instance health until status reports READY."
+
+  output:
+    parse: text
+    kind: object

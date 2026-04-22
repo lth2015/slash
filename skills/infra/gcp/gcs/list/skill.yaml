@@ -1,0 +1,33 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.gcp.gcs.list
+  name: "List GCS buckets"
+  description: "List Google Cloud Storage buckets with storage class, location, and creation time."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: infra, target: gcp, noun: [gcs], verb: list }
+  mode: read
+  timeout: 30s
+  profile: { kind: gcp, required: true }
+
+  args: []
+
+  bash:
+    argv:
+      - gcloud
+      - storage
+      - buckets
+      - list
+      - --format=json
+
+  output:
+    parse: json
+    kind: table
+    columns:
+      - { key: name,              label: "Bucket" }
+      - { key: location,          label: "Location" }
+      - { key: storageClass,      label: "Class" }
+      - { key: timeCreated,       label: "Created", renderer: relative-time }

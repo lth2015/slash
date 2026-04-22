@@ -1,0 +1,34 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.gcp.sql.list
+  name: "List Cloud SQL instances"
+  description: "List Cloud SQL instances with engine, tier, state, and region."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: infra, target: gcp, noun: [sql], verb: list }
+  mode: read
+  timeout: 30s
+  profile: { kind: gcp, required: true }
+
+  args: []
+
+  bash:
+    argv:
+      - gcloud
+      - sql
+      - instances
+      - list
+      - --format=json
+
+  output:
+    parse: json
+    kind: table
+    columns:
+      - { key: name,                 label: "Instance" }
+      - { key: databaseVersion,      label: "Engine" }
+      - { key: settings.tier,        label: "Tier" }
+      - { key: state,                label: "State", renderer: state-badge }
+      - { key: region,               label: "Region" }

@@ -1,0 +1,75 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.vm.resize
+  name: "Resize EC2 instance"
+  description: "Change instance type. Requires instance to be stopped; preflight verifies state."
+  version: 0.1.0
+  labels: { stability: beta, risk: high }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [vm], verb: resize }
+  mode: write
+  danger: true
+  danger_reason: |
+    Modifies the compute profile of a stopped instance. Starting again may
+    fail if the target type is unavailable in the AZ or violates EBS-optimized
+    / ENA requirements. Verify compatibility before approving.
+  approvers: 1
+  timeout: 60s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: id,        type: string, positional: true, required: true }
+    - { name: type,      flag: --type,   type: string, required: true }
+    - { name: region,    flag: --region, type: string, default: "us-east-1" }
+    - { name: reason,    flag: --reason, type: string, required: true }
+
+  preflight:
+    argv:
+      - aws
+      - ec2
+      - describe-instances
+      - --instance-ids
+      - "${id}"
+      - --region
+      - "${region}"
+      - --query
+      - "Reservations[0].Instances[0].State.Name"
+      - --output
+      - text
+
+  plan:
+    argv:
+      - aws
+      - ec2
+      - describe-instances
+      - --instance-ids
+      - "${id}"
+      - --region
+      - "${region}"
+      - --query
+      - "Reservations[0].Instances[0].InstanceType"
+      - --output
+      - text
+    diff:
+      before_source: stdout
+      after_value: "${type}"
+
+  bash:
+    argv:
+      - aws
+      - ec2
+      - modify-instance-attribute
+      - --instance-id
+      - "${id}"
+      - --instance-type
+      - "${type}"
+      - --region
+      - "${region}"
+
+  rollback: "/infra aws vm resize ${id} --type ${before} --region ${region} --reason \"rollback resize\""
+
+  output:
+    parse: text
+    kind: object

@@ -1,0 +1,52 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.ebs.snapshot
+  name: "Create EBS snapshot"
+  description: "Create a point-in-time snapshot of an EBS volume. Incremental; completes async."
+  version: 0.1.0
+  labels: { stability: beta, risk: medium }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [ebs], verb: snapshot }
+  mode: write
+  danger: false
+  approvers: 1
+  timeout: 120s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: volume, type: string, positional: true, required: true }
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+    - { name: desc,   flag: --desc,   type: string, required: true }
+    - { name: reason, flag: --reason, type: string, required: true }
+
+  preflight:
+    argv:
+      - aws
+      - ec2
+      - describe-volumes
+      - --volume-ids
+      - "${volume}"
+      - --region
+      - "${region}"
+
+  bash:
+    argv:
+      - aws
+      - ec2
+      - create-snapshot
+      - --volume-id
+      - "${volume}"
+      - --description
+      - "${desc}"
+      - --region
+      - "${region}"
+      - --output
+      - json
+
+  rollback: "Snapshot creation cannot be undone; delete with: aws ec2 delete-snapshot --snapshot-id <id> --region ${region}"
+
+  output:
+    parse: json
+    kind: object

@@ -1,0 +1,40 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.list.svc
+  name: "List Services"
+  description: "List Services in --ns with type, cluster IP, ports, and external endpoint."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [list], verb: svc }
+  mode: read
+  timeout: 20s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: ns, flag: --ns, type: string, required: true }
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - services
+      - -o
+      - json
+
+  output:
+    parse: json
+    path: "items[]"
+    kind: table
+    columns:
+      - { key: metadata.name,                          label: "Service" }
+      - { key: spec.type,                              label: "Type" }
+      - { key: spec.clusterIP,                         label: "Cluster IP" }
+      - { key: status.loadBalancer.ingress,            label: "External", fallback: "—" }
+      - { key: metadata.creationTimestamp,             label: "Age", renderer: relative-time }

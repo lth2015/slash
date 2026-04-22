@@ -1,0 +1,44 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.s3.ls
+  name: "List S3 objects in a bucket"
+  description: "List objects under a bucket (optionally a prefix). Page size capped."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [s3], verb: ls }
+  mode: read
+  timeout: 60s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: bucket, type: string, positional: true, required: true }
+    - { name: prefix, flag: --prefix, type: string }
+    - { name: max,    flag: --max,    type: int, default: 200 }
+
+  bash:
+    argv:
+      - aws
+      - s3api
+      - list-objects-v2
+      - --bucket
+      - "${bucket}"
+      - --max-items
+      - "${max}"
+      - --output
+      - json
+    expand:
+      - when: prefix
+        as: ["--prefix", "${value}"]
+
+  output:
+    parse: json
+    path: "Contents[]"
+    kind: table
+    columns:
+      - { key: Key,          label: "Key" }
+      - { key: Size,         label: "Size" }
+      - { key: StorageClass, label: "Class" }
+      - { key: LastModified, label: "Modified", renderer: relative-time }
