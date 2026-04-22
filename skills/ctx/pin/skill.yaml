@@ -1,0 +1,26 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: ctx.pin
+  name: "Pin a context"
+  description: "Pin a k8s context / AWS profile / GCP config as the session default, with an explicit tier."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: ctx, noun: [], verb: pin }
+  mode: read
+  timeout: 5s
+  profile: { kind: none }
+
+  args:
+    - { name: kind, type: string, positional: true, required: true, enum: [k8s, aws, gcp] }
+    - { name: name, type: string, positional: true, required: true }
+    - { name: tier, flag: --tier, type: string, enum: [critical, staging, safe], default: "safe" }
+
+  # Mutates the process-local pin; no HITL because no infra is touched.
+  # Audit still records the invocation.
+  builtin: ctx_pin
+
+  output:
+    kind: object

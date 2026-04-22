@@ -43,6 +43,14 @@ def run_builtin(
         return _diagnose(ctx.args)
     if kind == "aggregate":
         return _aggregate(ctx, cfg)
+    if kind == "ctx_pin":
+        return _ctx_pin(ctx.args)
+    if kind == "ctx_unpin":
+        return _ctx_unpin(ctx.args)
+    if kind == "ctx_show":
+        return _ctx_show()
+    if kind == "ctx_list":
+        return _ctx_list()
     return "error", None, "BuiltinUnknown", f"no built-in named {kind!r}"
 
 
@@ -158,3 +166,100 @@ def _aggregate(ctx: BuildContext, config: dict) -> tuple[str, Any, str | None, s
         }
 
     return "ok", {"steps": collected}, None, None
+
+
+# ── /ctx builtins ────────────────────────────────────────────────────────
+#
+# These mutate / expose the session pin. They are marked mode: read on the
+# skill side so they don't trigger HITL approval — a pin change touches no
+# infrastructure, only the process-local preference that subsequent commands
+# read. Every invocation still appends to audit.jsonl via the normal execute
+# path, so "who pinned what when" remains traceable.
+
+
+_VALID_KINDS = ("k8s", "aws", "gcp")
+_VALID_TIERS = ("critical", "staging", "safe")
+
+
+def _ctx_pin(args: dict[str, Any]) -> tuple[str, Any, str | None, str | None]:
+    from slash_api.state import selected, set_selected
+
+    kind = (args.get("kind") or "").strip()
+    name = (args.get("name") or "").strip()
+    tier = (args.get("tier") or "safe").strip()
+    if kind not in _VALID_KINDS:
+        return "error", None, "Validation", f"kind must be one of {_VALID_KINDS}"
+    if not name:
+        return "error", None, "Validation", "name required"
+    if tier not in _VALID_TIERS:
+        return "error", None, "Validation", f"tier must be one of {_VALID_TIERS}"
+
+    if kind == "k8s":
+        set_selected(k8s=name, k8s_tier=tier)
+    elif kind == "aws":
+        set_selected(aws=name, aws_tier=tier)
+    else:  # gcp
+        set_selected(gcp=name, gcp_tier=tier)
+
+    sel = selected()
+    return "ok", {
+        "pinned": {"kind": kind, "name": name, "tier": tier},
+        "current": _pin_snapshot(sel),
+    }, None, None
+
+
+def _ctx_unpin(args: dict[str, Any]) -> tuple[str, Any, str | None, str | None]:
+    from slash_api.state import selected, set_selected
+
+    kind = (args.get("kind") or "").strip()
+    if kind not in (*_VALID_KINDS, "all"):
+        return "error", None, "Validation", f"kind must be one of {_VALID_KINDS} or 'all'"
+
+    if kind in ("k8s", "all"):
+        set_selected(k8s="", k8s_tier="safe")
+    if kind in ("aws", "all"):
+        set_selected(aws="", aws_tier="safe")
+    if kind in ("gcp", "all"):
+        set_selected(gcp="", gcp_tier="safe")
+
+    sel = selected()
+    return "ok", {
+        "unpinned": kind,
+        "current": _pin_snapshot(sel),
+    }, None, None
+
+
+def _ctx_show() -> tuple[str, Any, str | None, str | None]:
+    from slash_api.state import selected
+
+    return "ok", _pin_snapshot(selected()), None, None
+
+
+def _ctx_list() -> tuple[str, Any, str | None, str | None]:
+    """Discover all contexts / profiles from the local OS config. Reads:
+      - `kubectl config get-contexts` (or ~/.kube/config)
+      - `~/.aws/credentials`
+      - `gcloud config configurations list`
+    Wrapped by runtime.profile.read_profiles().
+    """
+    from slash_api.runtime.profile import read_profiles
+    from slash_api.state import selected
+
+    inv = read_profiles()
+    sel = selected()
+    return "ok", {
+        "k8s_contexts": inv.k8s_contexts,
+        "aws_profiles": inv.aws_profiles,
+        "gcp_configurations": inv.gcp_configurations,
+        "errors": inv.errors,
+        "current": _pin_snapshot(sel),
+    }, None, None
+
+
+def _pin_snapshot(sel: Any) -> dict[str, Any]:
+    """Compact view of the current pin state — used by show, pin, unpin."""
+    return {
+        "k8s": {"name": sel.k8s, "tier": sel.k8s_tier} if sel.k8s else None,
+        "aws": {"name": sel.aws, "tier": sel.aws_tier} if sel.aws else None,
+        "gcp": {"name": sel.gcp, "tier": sel.gcp_tier} if sel.gcp else None,
+    }

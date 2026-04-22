@@ -9,7 +9,7 @@ from typing import Any
 from slash_api.parser.errors import ParseError
 from slash_api.parser.lexer import Token, TokenKind, tokenize
 
-NAMESPACES = ("infra", "cluster", "app", "ops")
+NAMESPACES = ("infra", "cluster", "app", "ops", "ctx")
 TARGETED_NS = {"infra", "cluster"}  # these require <target> after the namespace
 _TARGETED_NS = TARGETED_NS  # legacy alias
 _PROVIDERS_FOR_INFRA = ("aws", "gcp")  # used purely to give nicer UnknownCommand hints

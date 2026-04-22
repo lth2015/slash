@@ -1,0 +1,22 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: ctx.unpin
+  name: "Unpin a context"
+  description: "Remove a pinned context. Use 'all' to clear every pin — subsequent commands will then need explicit --ctx."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: ctx, noun: [], verb: unpin }
+  mode: read
+  timeout: 5s
+  profile: { kind: none }
+
+  args:
+    - { name: kind, type: string, positional: true, required: true, enum: [k8s, aws, gcp, all] }
+
+  builtin: ctx_unpin
+
+  output:
+    kind: object

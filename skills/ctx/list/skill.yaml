@@ -1,0 +1,21 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: ctx.list
+  name: "List available contexts"
+  description: "Discover every kube context / AWS profile / GCP config from local OS config. Pure read — no cloud calls."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: ctx, noun: [], verb: list }
+  mode: read
+  timeout: 10s
+  profile: { kind: none }
+
+  args: []
+
+  builtin: ctx_list
+
+  output:
+    kind: object

@@ -1,0 +1,21 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: ctx.show
+  name: "Show current pins"
+  description: "Display the currently pinned k8s / AWS / GCP contexts with their tiers."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: ctx, noun: [], verb: show }
+  mode: read
+  timeout: 5s
+  profile: { kind: none }
+
+  args: []
+
+  builtin: ctx_show
+
+  output:
+    kind: object

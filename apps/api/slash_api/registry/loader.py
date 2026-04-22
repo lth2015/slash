@@ -100,11 +100,11 @@ def _load_one(manifest_path: Path) -> SkillSpec:
         raise RegistryError(f"metadata missing: {missing}")
 
     namespace = cmd.get("namespace")
-    if namespace not in ("infra", "cluster", "app", "ops"):
+    if namespace not in ("infra", "cluster", "app", "ops", "ctx"):
         raise RegistryError(f"spec.command.namespace invalid: {namespace!r}")
     target_raw = cmd.get("target")
-    # Canonicalize: /app /ops store None; /cluster stores None; /infra keeps provider.
-    if namespace in ("app", "ops"):
+    # Canonicalize: /app /ops /ctx store None; /cluster stores None; /infra keeps provider.
+    if namespace in ("app", "ops", "ctx"):
         target: str | None = None
     elif namespace == "cluster":
         target = None
