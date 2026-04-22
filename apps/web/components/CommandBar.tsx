@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { EditorState } from "@codemirror/state";
@@ -14,6 +14,12 @@ import {
   setModeEffect,
 } from "@/components/editor/highlight";
 import { commandTheme } from "@/components/editor/theme";
+import {
+  Suggestion,
+  SuggestionsPanel,
+  filterSkills,
+  useSkills,
+} from "@/components/Suggestions";
 import { cn } from "@/lib/cn";
 
 export type ParseStatus =
@@ -37,27 +43,133 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
   const [status, setStatus] = useState<ParseStatus>({ kind: "idle" });
   const theme = useMemo(() => commandTheme, []);
 
+  const skills = useSkills();
+  const [highlight, setHighlight] = useState(0);
+
+  const suggestions = useMemo(() => filterSkills(skills, value), [skills, value]);
+
+  // Open if input starts with '/' and has suggestions, and current text doesn't
+  // already match a fully-resolved stem (avoid popping over a parsed command).
+  const open = useMemo(() => {
+    if (!value || !value.startsWith("/")) return false;
+    if (suggestions.length === 0) return false;
+    if (status.kind === "ok" && !value.trim().endsWith(" ") === false) {
+      // parsed successfully AND user has moved on — still show if user keeps typing
+    }
+    return true;
+  }, [value, suggestions.length, status.kind]);
+
+  // Clamp highlight when list changes
+  useEffect(() => {
+    setHighlight((h) => Math.min(Math.max(0, h), Math.max(0, suggestions.length - 1)));
+  }, [suggestions.length]);
+
   const onSubmitRef = useRef(onSubmit);
   const onValRef = useRef(onValueChange);
   onSubmitRef.current = onSubmit;
   onValRef.current = onValueChange;
 
+  // Latest copies for key handlers that live inside the one-time effect.
+  const openRef = useRef(open);
+  const hlRef = useRef(highlight);
+  const itemsRef = useRef<Suggestion[]>(suggestions);
+  openRef.current = open;
+  hlRef.current = highlight;
+  itemsRef.current = suggestions;
+
   useEffect(() => { statusRef?.(status); }, [status, statusRef]);
+
+  const pick = useCallback((s: Suggestion) => {
+    const v = viewRef.current;
+    if (!v) return;
+    const currentLen = v.state.doc.length;
+    v.dispatch({
+      changes: { from: 0, to: currentLen, insert: s.insert },
+      selection: { anchor: s.caretAt >= 0 ? s.caretAt : s.insert.length },
+    });
+    v.focus();
+  }, []);
+
+  const closePalette = useCallback(() => {
+    const v = viewRef.current;
+    if (!v) return;
+    if (v.state.doc.length > 0) {
+      v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: "" } });
+    }
+    v.contentDOM.blur();
+  }, []);
+
+  const pickCurrent = useCallback(() => {
+    const items = itemsRef.current;
+    if (!items.length) return false;
+    const i = Math.min(Math.max(hlRef.current, 0), items.length - 1);
+    pick(items[i]);
+    return true;
+  }, [pick]);
 
   useEffect(() => {
     if (!parentRef.current) return;
     let debounce: ReturnType<typeof setTimeout> | null = null;
     let inFlight: AbortController | null = null;
 
-    const submitKm = keymap.of([{
-      key: "Enter",
-      preventDefault: true,
-      run: (v) => {
-        const text = v.state.doc.toString();
-        if (text.trim()) onSubmitRef.current(text);
-        return true;
+    const submitOrPick = keymap.of([
+      {
+        key: "ArrowDown",
+        preventDefault: true,
+        run: () => {
+          if (!openRef.current) return false;
+          setHighlight((h) => Math.min(itemsRef.current.length - 1, h + 1));
+          return true;
+        },
       },
-    }]);
+      {
+        key: "ArrowUp",
+        preventDefault: true,
+        run: () => {
+          if (!openRef.current) return false;
+          setHighlight((h) => Math.max(0, h - 1));
+          return true;
+        },
+      },
+      {
+        key: "Tab",
+        preventDefault: true,
+        run: () => {
+          if (!openRef.current) return false;
+          return pickCurrent();
+        },
+      },
+      {
+        key: "Enter",
+        preventDefault: true,
+        run: (v) => {
+          const text = v.state.doc.toString();
+          // If palette is open AND current text is just a prefix with no placeholder
+          // yet filled, treat Enter as "insert" — user is browsing.
+          const canPick =
+            openRef.current &&
+            itemsRef.current.length > 0 &&
+            // Only auto-pick when input is short / doesn't look like a full command.
+            (text.trim().length === 0 ||
+              text.trimEnd().split(/\s+/).length <= 2 ||
+              text.includes("<"));
+          if (canPick) return pickCurrent();
+          if (text.trim()) onSubmitRef.current(text);
+          return true;
+        },
+      },
+      {
+        key: "Escape",
+        run: () => {
+          // Clear the input — this also closes the palette since it reacts to value.
+          const v = viewRef.current;
+          if (!v) return false;
+          if (!v.state.doc.length) return false;
+          v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: "" } });
+          return true;
+        },
+      },
+    ]);
 
     const listener = EditorView.updateListener.of((u) => {
       if (!u.docChanged) return;
@@ -115,18 +227,19 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
       doc: value,
       extensions: [
         history(),
+        // Put our overrides FIRST so they beat the default Enter behavior.
+        submitOrPick,
         keymap.of([...defaultKeymap, ...historyKeymap]),
-        submitKm,
         highlightField,
         theme,
-        placeholder("Type a command, e.g. /ops audit logs --since 1d"),
+        placeholder("Type / to discover commands…"),
         listener,
         EditorView.domEventHandlers({
           focus: () => { setFocused(true); return false; },
           blur: () => { setFocused(false); return false; },
         }),
         EditorView.contentAttributes.of({
-          "aria-label": "Slash command input",
+          "aria-label": "SRE Copilot command input",
           role: "textbox",
           spellcheck: "false",
           autocorrect: "off",
@@ -145,7 +258,7 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync external value (e.g. suggestion click)
+  // Sync external value (e.g. suggestion click from empty state)
   useEffect(() => {
     const v = viewRef.current;
     if (!v) return;
@@ -155,43 +268,61 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
   }, [value]);
 
   return (
-    <div className="border-t border-border bg-surface/80 backdrop-blur-sm">
+    <>
+      {/* Focus scrim — fades out everything behind the open palette. */}
       <div
+        aria-hidden
         className={cn(
-          "flex items-stretch transition-shadow duration-160 ease-m-instant",
-          focused &&
-            "shadow-[inset_0_1px_0_0_var(--accent),0_-8px_24px_-12px_color-mix(in_oklab,var(--accent)_55%,transparent)]",
-          disabled && "opacity-60 pointer-events-none",
+          "fixed inset-0 z-10 transition-opacity duration-200 ease-m-enter",
+          "bg-canvas/70 backdrop-blur-[3px]",
+          open ? "opacity-100 pointer-events-none" : "opacity-0 pointer-events-none",
         )}
-      >
-        <div
-          aria-hidden
-          className="w-10 bg-canvas border-r border-border-subtle flex items-start justify-center pt-2 text-caption font-mono text-text-muted select-none tabular"
-        >
-          1
-        </div>
-        <div ref={parentRef} className="flex-1 min-w-0 px-4" />
-        <div className="hidden md:flex items-center gap-2 pr-4 text-caption tracking-kicker uppercase text-text-muted select-none">
-          <kbd className="px-1.5 py-0.5 rounded-sm border border-border-subtle bg-canvas font-mono">↵</kbd>
-          <span>run</span>
+      />
+
+      <div className="relative z-20 border-t border-border-subtle bg-surface/85 backdrop-blur-md">
+        <div className="max-w-6xl mx-auto px-6 pt-4 pb-3 relative">
+          <SuggestionsPanel
+            open={open}
+            items={suggestions}
+            highlight={highlight}
+            onHover={setHighlight}
+            onPick={pick}
+            onClose={closePalette}
+          />
+
+          <div
+            className={cn(
+              "flex items-stretch rounded-xl border bg-surface transition-all duration-160 ease-m-instant",
+              focused
+                ? "border-brand shadow-brand"
+                : "border-border-subtle shadow-xs",
+              disabled && "opacity-60 pointer-events-none",
+            )}
+          >
+            <div ref={parentRef} className="flex-1 min-w-0 px-5 py-1" />
+            <div className="hidden md:flex items-center gap-2 pr-4 text-caption tracking-chip text-text-muted select-none">
+              <kbd className="px-2 py-0.5 rounded-md border border-border-subtle bg-surface-sub font-mono text-[11px]">↵</kbd>
+              <span>run</span>
+            </div>
+          </div>
+          <StatusLine status={status} />
         </div>
       </div>
-      <StatusLine status={status} />
-    </div>
+    </>
   );
 }
 
 function StatusLine({ status }: { status: ParseStatus }) {
   return (
-    <div className="h-7 px-5 flex items-center text-mono-body font-mono border-t border-border-subtle">
+    <div className="h-7 mt-2 px-1 flex items-center text-small font-mono">
       {status.kind === "idle" && (
         <span className="text-text-muted">
-          — ready — <span className="text-border">·</span> type a command starting with <span className="text-text-secondary">/</span>
+          Ready. Press <span className="text-brand font-medium">/</span> to browse commands, type to filter.
         </span>
       )}
       {status.kind === "parsing" && (
-        <span className="text-text-secondary">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-text-secondary mr-2 align-middle animate-pulse" />
+        <span className="text-text-secondary flex items-center gap-2">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
           parsing…
         </span>
       )}
@@ -202,23 +333,23 @@ function StatusLine({ status }: { status: ParseStatus }) {
           <span className="text-border">·</span>
           <span
             className={cn(
-              "text-caption tracking-chip uppercase rounded-sm border px-1.5 py-[1px]",
+              "text-caption tracking-chip rounded-full px-2 py-0.5",
               status.danger
-                ? "bg-danger/10 border-danger/50 text-danger"
+                ? "bg-danger-soft text-danger"
                 : status.mode === "write"
-                  ? "bg-write/10 border-write/40 text-write"
-                  : "bg-ok/10 border-ok/40 text-ok",
+                  ? "bg-write-soft text-write"
+                  : "bg-ok-soft text-ok",
             )}
           >
             {status.danger ? "DANGER" : status.mode.toUpperCase()}
           </span>
           <span className="text-border">·</span>
-          <span>{status.skillId}</span>
+          <span className="text-text-secondary">{status.skillId}</span>
         </span>
       )}
       {status.kind === "error" && (
         <span className="flex items-center gap-2 text-text-primary flex-wrap">
-          <span className="text-danger">✕</span>
+          <span className="text-danger font-semibold">✕</span>
           <span className="text-danger">{status.code}</span>
           <span className="text-text-muted">at col {status.offset + 1}</span>
           <span className="text-border">·</span>
@@ -228,7 +359,9 @@ function StatusLine({ status }: { status: ParseStatus }) {
               <span className="text-border">·</span>
               <span className="text-text-muted">try:</span>
               <span className="flex gap-2">
-                {status.suggestions.slice(0, 3).map((s) => <span key={s} className="text-text-secondary font-mono">{s}</span>)}
+                {status.suggestions.slice(0, 3).map((s) => (
+                  <span key={s} className="text-text-secondary font-mono">{s}</span>
+                ))}
               </span>
             </>
           )}

@@ -49,30 +49,26 @@ export function ApprovalCard({ runId, danger, reason, onDecided }: ApprovalProps
   }
 
   return (
-    <Card rail={danger ? "danger" : "write"} danger={danger} attached>
-      <div className="p-4 space-y-3">
+    <Card rail={danger ? "danger" : "write"} danger={danger}>
+      <div className="p-5 space-y-4">
         <div className="flex items-center gap-2 flex-wrap">
-          <Chip kind={danger ? "danger" : "write"}>{danger ? "DANGER" : "WRITE"}</Chip>
-          <span className="text-caption tracking-kicker uppercase text-text-muted">awaiting approval</span>
+          <Chip kind={danger ? "danger" : "write"}>{danger ? "DANGER" : "AWAITING APPROVAL"}</Chip>
           {reason && (
-            <>
-              <span className="text-border">·</span>
-              <span className="text-small text-text-secondary">reason: {reason}</span>
-            </>
+            <span className="text-small text-text-secondary">reason: {reason}</span>
           )}
         </div>
 
         {danger && (
-          <div className="font-mono text-mono-body flex items-center gap-3">
-            <label htmlFor={`yes-${runId}`} className="text-caption tracking-kicker uppercase text-text-muted shrink-0">
-              type YES to unlock approve
+          <div className="flex items-center gap-3">
+            <label htmlFor={`yes-${runId}`} className="kicker shrink-0 text-danger">
+              type YES to unlock
             </label>
             <input
               id={`yes-${runId}`}
               value={yesText}
               onChange={(e) => setYesText(e.target.value)}
               placeholder="YES"
-              className="flex-1 bg-canvas border border-border-subtle rounded-sm px-2 h-7 text-mono-body font-mono text-text-primary focus:border-danger focus:outline-none"
+              className="flex-1 bg-surface-sub border border-border rounded-md px-3 h-9 text-small font-mono text-text-primary focus:border-danger focus:outline-none"
               spellCheck={false}
               autoCorrect="off"
               autoCapitalize="characters"
@@ -82,7 +78,7 @@ export function ApprovalCard({ runId, danger, reason, onDecided }: ApprovalProps
 
         {rejectMode && (
           <div className="flex items-center gap-3">
-            <label htmlFor={`rej-${runId}`} className="text-caption tracking-kicker uppercase text-text-muted shrink-0">
+            <label htmlFor={`rej-${runId}`} className="kicker shrink-0">
               reject reason
             </label>
             <input
@@ -90,7 +86,7 @@ export function ApprovalCard({ runId, danger, reason, onDecided }: ApprovalProps
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               placeholder="why are you rejecting?"
-              className="flex-1 bg-canvas border border-border-subtle rounded-sm px-2 h-7 text-body font-sans text-text-primary focus:border-focus focus:outline-none"
+              className="flex-1 bg-surface-sub border border-border rounded-md px-3 h-9 text-small text-text-primary focus:border-brand focus:outline-none"
             />
           </div>
         )}
@@ -103,7 +99,7 @@ export function ApprovalCard({ runId, danger, reason, onDecided }: ApprovalProps
             <button
               disabled={busy}
               onClick={() => setRejectMode(true)}
-              className="h-7 px-3 text-caption tracking-kicker uppercase border border-border-subtle rounded-sm text-text-secondary hover:border-border hover:bg-elevated transition-colors duration-80 ease-m-instant disabled:opacity-50"
+              className="h-9 px-4 text-caption tracking-chip rounded-full border border-border-subtle bg-surface text-text-secondary hover:border-border hover:bg-elevated transition-colors duration-80 disabled:opacity-50"
             >
               reject
             </button>
@@ -113,14 +109,14 @@ export function ApprovalCard({ runId, danger, reason, onDecided }: ApprovalProps
               <button
                 disabled={busy}
                 onClick={() => setRejectMode(false)}
-                className="h-7 px-3 text-caption tracking-kicker uppercase border border-border-subtle rounded-sm text-text-muted hover:text-text-secondary"
+                className="h-9 px-4 text-caption tracking-chip rounded-full border border-border-subtle bg-surface text-text-muted hover:text-text-secondary"
               >
                 cancel
               </button>
               <button
                 disabled={busy || !rejectReason.trim()}
                 onClick={() => decide("reject")}
-                className="h-7 px-3 text-caption tracking-kicker uppercase border border-danger/40 bg-danger/10 text-danger rounded-sm hover:bg-danger/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-9 px-4 text-caption tracking-chip rounded-full bg-danger-soft border border-danger/40 text-danger hover:bg-danger/15 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 confirm reject
               </button>
@@ -130,12 +126,12 @@ export function ApprovalCard({ runId, danger, reason, onDecided }: ApprovalProps
             disabled={busy || !canApprove}
             onClick={() => decide("approve")}
             className={cn(
-              "h-7 px-4 text-caption tracking-kicker uppercase rounded-sm border transition-colors duration-80 ease-m-instant",
+              "h-9 px-5 text-caption tracking-chip rounded-full shadow-xs transition-all duration-160",
               danger
                 ? canApprove
-                  ? "bg-danger text-white border-danger hover:brightness-110"
-                  : "bg-danger/20 text-danger/70 border-danger/40 cursor-not-allowed"
-                : "bg-write/20 text-write border-write/50 hover:bg-write/30",
+                  ? "bg-danger text-white hover:brightness-110"
+                  : "bg-danger-soft text-danger/70 cursor-not-allowed"
+                : "bg-brand text-white hover:bg-brand-strong",
               "disabled:opacity-60 disabled:cursor-not-allowed",
             )}
             aria-disabled={!canApprove}

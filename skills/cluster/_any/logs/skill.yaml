@@ -1,0 +1,35 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.logs
+  name: "Pod logs"
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [], verb: logs }
+  mode: read
+  timeout: 30s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: pod,   type: string, positional: true, required: true }
+    - { name: ns,    flag: --ns,    type: string, required: true }
+    - { name: since, flag: --since, type: duration }
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - logs
+      - "${pod}"
+    expand:
+      - when: since
+        as: ["--since=${value}"]
+
+  output:
+    parse: text
+    kind: log

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronsUpDown, Copy, Download } from "lucide-react";
+import { ChevronDown, ChevronsUpDown } from "lucide-react";
 
 import { Card, CardMeta } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
@@ -35,11 +35,12 @@ export interface ResultPayload {
   ts?: string;
 }
 
-export function ResultCard({ result, attached }: { result: ResultPayload; attached?: boolean }) {
+export function ResultCard({ result }: { result: ResultPayload; attached?: boolean }) {
   const spec = result.output_spec ?? {};
   const kind = spec.kind ?? "object";
+  const rowCount = asArray(result.outputs).length;
   return (
-    <Card rail={result.state === "ok" ? "ok" : "error"} attached={attached}>
+    <Card rail={result.state === "ok" ? "ok" : "error"}>
       <CardMeta
         hash={result.run_id}
         ts={result.ts}
@@ -56,17 +57,21 @@ export function ResultCard({ result, attached }: { result: ResultPayload; attach
         {kind === "log" && <LogView text={String(result.outputs ?? "")} />}
         {kind === "chart" && <ObjectView value={result.outputs} />}
 
-        <footer className="h-6 px-4 flex items-center gap-3 text-caption tracking-kicker uppercase text-text-muted border-t border-border-subtle">
+        <footer className="h-8 px-4 flex items-center gap-3 text-caption tracking-chip text-text-muted border-t border-border-subtle bg-surface-sub">
           <Chip kind={result.mode === "write" ? "write" : "read"}>{result.mode}</Chip>
-          <span>{result.skill_id}</span>
+          <span className="font-mono text-text-secondary">{result.skill_id}</span>
           {typeof result.duration_ms === "number" && (
             <>
               <span className="text-border">·</span>
-              <span className="tabular">{result.duration_ms} ms</span>
+              <span className="tabular font-mono">{result.duration_ms} ms</span>
             </>
           )}
-          <span className="text-border">·</span>
-          <span className="tabular">{asArray(result.outputs).length} rows</span>
+          {kind === "table" && (
+            <>
+              <span className="text-border">·</span>
+              <span className="tabular font-mono">{rowCount} rows</span>
+            </>
+          )}
         </footer>
       </div>
     </Card>
@@ -79,7 +84,7 @@ function asArray(v: unknown): unknown[] {
   return [v];
 }
 
-// ── Table variant ──────────────────────────────────────────────────────
+// ── Table ──────────────────────────────────────────────────────────────
 function TableView({ rows, columns }: { rows: unknown[]; columns: Column[] }) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -97,7 +102,7 @@ function TableView({ rows, columns }: { rows: unknown[]; columns: Column[] }) {
 
   if (rows.length === 0) {
     return (
-      <div className="h-8 flex items-center justify-center text-small text-text-muted">
+      <div className="h-12 flex items-center justify-center text-small text-text-muted">
         — no rows —
       </div>
     );
@@ -105,16 +110,13 @@ function TableView({ rows, columns }: { rows: unknown[]; columns: Column[] }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full font-mono text-mono-body">
+      <table className="w-full font-mono text-small">
         <thead>
-          <tr className="bg-elevated border-b border-border-subtle">
+          <tr className="bg-surface-sub border-b border-border-subtle">
             {columns.map((c) => (
               <th
                 key={c.key}
-                className={cn(
-                  "h-7 px-3 text-left text-caption tracking-kicker uppercase text-text-secondary",
-                  "font-normal select-none cursor-pointer",
-                )}
+                className="h-9 px-4 text-left kicker font-normal select-none cursor-pointer"
                 onClick={() => {
                   if (sortKey === c.key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
                   else { setSortKey(c.key); setSortDir("asc"); }
@@ -139,10 +141,10 @@ function TableView({ rows, columns }: { rows: unknown[]; columns: Column[] }) {
           {sorted.map((row, i) => (
             <tr
               key={i}
-              className="border-b border-border-subtle last:border-b-0 hover:bg-elevated transition-colors duration-80 ease-m-instant"
+              className="border-b border-border-subtle last:border-b-0 hover:bg-elevated transition-colors duration-80"
             >
               {columns.map((c) => (
-                <td key={c.key} className="h-7 px-3 whitespace-nowrap">
+                <td key={c.key} className="h-9 px-4 whitespace-nowrap">
                   <CellRenderer row={row} col={c} />
                 </td>
               ))}
@@ -211,49 +213,51 @@ function resolveKey(row: unknown, key: string): unknown {
   return cur;
 }
 
-// ── Object variant ─────────────────────────────────────────────────────
+// ── Object ─────────────────────────────────────────────────────────────
 function ObjectView({ value }: { value: unknown }) {
   const [showRaw, setShowRaw] = useState(false);
   const json = useMemo(() => JSON.stringify(value, null, 2), [value]);
 
   if (value == null) {
-    return <div className="h-8 flex items-center justify-center text-small text-text-muted">— empty —</div>;
+    return <div className="h-12 flex items-center justify-center text-small text-text-muted">— empty —</div>;
   }
 
-  // Array → show a row-count + first-N-rows summary
   if (Array.isArray(value)) {
     return (
-      <div className="p-4 space-y-2">
-        <div className="text-caption tracking-kicker uppercase text-text-muted">{value.length} items</div>
-        <pre className="font-mono text-mono-body text-text-primary whitespace-pre overflow-x-auto">{json}</pre>
+      <div className="p-5 space-y-2">
+        <div className="kicker">{value.length} items</div>
+        <pre className="font-mono text-small text-text-primary whitespace-pre overflow-x-auto bg-surface-sub rounded-lg p-4 border border-border-subtle">
+          {json}
+        </pre>
       </div>
     );
   }
 
-  // Object → key / value grid
   if (typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>);
     return (
-      <div className="p-4">
-        <div className="flex items-center justify-end mb-1">
+      <div className="p-5">
+        <div className="flex items-center justify-end mb-2">
           <button
             onClick={() => setShowRaw((s) => !s)}
-            className="text-caption tracking-kicker uppercase text-text-muted hover:text-text-secondary"
+            className="kicker text-text-muted hover:text-text-secondary"
           >
             {showRaw ? "hide raw" : "view raw"}
           </button>
         </div>
         {showRaw ? (
-          <pre className="font-mono text-mono-body text-text-primary whitespace-pre overflow-x-auto">{json}</pre>
+          <pre className="font-mono text-small text-text-primary whitespace-pre overflow-x-auto bg-surface-sub rounded-lg p-4 border border-border-subtle">
+            {json}
+          </pre>
         ) : (
-          <dl className="grid grid-cols-[140px_1fr] gap-x-4 gap-y-1 text-mono-body font-mono">
+          <dl className="grid grid-cols-[160px_1fr] gap-x-5 gap-y-2 text-small font-mono">
             {entries.map(([k, v]) => (
-              <>
-                <dt key={`k-${k}`} className="text-caption tracking-kicker uppercase text-text-muted text-right pt-1">{k}</dt>
-                <dd key={`v-${k}`} className="text-text-primary break-words">
+              <div key={k} className="contents">
+                <dt className="kicker text-right pt-0.5">{k}</dt>
+                <dd className="text-text-primary break-words">
                   {typeof v === "object" ? JSON.stringify(v) : String(v)}
                 </dd>
-              </>
+              </div>
             ))}
           </dl>
         )}
@@ -261,14 +265,14 @@ function ObjectView({ value }: { value: unknown }) {
     );
   }
 
-  return <div className="p-4 font-mono text-mono-body">{String(value)}</div>;
+  return <div className="p-5 font-mono text-small">{String(value)}</div>;
 }
 
-// ── Log variant ────────────────────────────────────────────────────────
+// ── Log ────────────────────────────────────────────────────────────────
 function LogView({ text }: { text: string }) {
   const lines = text.split("\n");
   return (
-    <div className="bg-canvas p-3 font-mono text-[12px] leading-[1.55] max-h-96 overflow-auto">
+    <div className="bg-surface-sub p-4 font-mono text-[12.5px] leading-[1.6] max-h-[28rem] overflow-auto">
       {lines.map((line, i) => (
         <div key={i} className={highlightClass(line)}>{line || <>&nbsp;</>}</div>
       ))}
@@ -282,5 +286,4 @@ function highlightClass(line: string): string {
   return "text-text-primary";
 }
 
-// helpers re-exported for external use
 export { formatRelativeTime };

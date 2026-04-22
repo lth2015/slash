@@ -2,49 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Control Ledger · Cosmic Orange — dark (default) */
-:root {
-  color-scheme: dark;
-  --canvas:        #0F0B09;
-  --surface:       #17120F;
-  --elevated:      #201915;
-  --border-subtle: #2A221C;
-  --border:        #3A2F26;
-  --text-primary:  #F5ECE3;
-  --text-secondary:#B9ADA0;
-  --text-muted:    #807466;
-  --ok:            #3FC584;
-  --write:         #FFB05A;
-  --danger:        #FF5A63;
-  --warn:          #FFD046;
-  --pending:       #8FA6CC;
-  --llm:           #E0B070;
-  --focus:         #FF7A3D;
-  --accent:        #FF7A3D;
-  --accent-deep:   #F05F2A;
-  --accent-soft:   #FFA76B;
-}
+/* ── SRE Copilot — 2026 Soft Glass Commerce (light only) ──
+   Palette ported from weaclaw Pilot v2.0. Single light theme.
+   Token naming keeps the earlier Tailwind aliases (canvas / surface /
+   elevated / text-{primary,secondary,muted} / ok / write / danger / …)
+   so utility classes across cards continue to compose unchanged. */
 
-html.light {
+:root {
   color-scheme: light;
-  --canvas:        #FFF8F2;
-  --surface:       #FFFFFF;
-  --elevated:      #FDF1E5;
-  --border-subtle: #F1E2CF;
-  --border:        #D9C4AB;
-  --text-primary:  #2A1C12;
-  --text-secondary:#5A4A3C;
-  --text-muted:    #8E7F6F;
-  --ok:            #0E8A4A;
-  --write:         #C56A18;
-  --danger:        #C8202C;
-  --warn:          #9A7400;
-  --pending:       #3B5B84;
-  --llm:           #8A6A30;
-  --focus:         #E25A1E;
-  --accent:        #E25A1E;
-  --accent-deep:   #B64411;
-  --accent-soft:   #FF8A4D;
+
+  /* Surfaces */
+  --canvas:         oklch(98.5% 0.006 265);   /* page background, trace lilac */
+  --surface:        oklch(100%  0     265);   /* cards, panels */
+  --elevated:       oklch(96.8% 0.012 270);   /* hover row, subtle lift */
+  --surface-sub:    oklch(97%   0.008 265);   /* inputs, embedded blocks */
+
+  /* Borders */
+  --border-subtle:  oklch(93%   0.008 265);
+  --border:         oklch(89.5% 0.014 265);
+
+  /* Text */
+  --text-primary:   oklch(18%   0.022 265);
+  --text-secondary: oklch(42%   0.018 265);
+  --text-muted:     oklch(62%   0.012 265);
+
+  /* Brand */
+  --brand:          oklch(58%   0.22  285);
+  --brand-strong:   oklch(46%   0.24  285);
+  --brand-soft:     oklch(90%   0.08  285);
+  --brand-tint:     oklch(96.5% 0.04  285);
+
+  /* Semantic */
+  --ok:             oklch(62%   0.16  155);
+  --ok-soft:        oklch(94%   0.08  155);
+  --write:          oklch(66%   0.15  60);
+  --write-soft:     oklch(95%   0.09  70);
+  --danger:         oklch(58%   0.22  25);
+  --danger-soft:    oklch(95%   0.06  25);
+  --warn:           oklch(70%   0.14  85);
+  --warn-soft:      oklch(95%   0.09  90);
+  --pending:        oklch(60%   0.12  240);
+  --pending-soft:   oklch(94%   0.05  240);
+  --llm:            oklch(58%   0.22  285);   /* reuse brand for LLM accent */
+  --llm-soft:       oklch(94.5% 0.05  285);
+
+  /* Interaction */
+  --focus:          var(--brand);
+  --accent:         var(--brand);
+  --accent-deep:    var(--brand-strong);
+  --accent-soft:    var(--brand-soft);
+
+  /* Shadows — brand-tinted, never pure black */
+  --shadow-xs:  0 1px 2px oklch(70% 0.04 270 / 0.06);
+  --shadow-sm:  0 1px 3px oklch(70% 0.04 270 / 0.10), 0 1px 2px oklch(70% 0.04 270 / 0.06);
+  --shadow-md:  0 6px 20px oklch(65% 0.06 270 / 0.10), 0 2px 6px oklch(65% 0.06 270 / 0.06);
+  --shadow-lg:  0 16px 44px oklch(60% 0.08 270 / 0.12), 0 6px 14px oklch(60% 0.08 270 / 0.06);
+  --shadow-brand: 0 0 0 3px oklch(58% 0.22 285 / 0.14);
+  --shadow-palette:
+    0 0 0 1px var(--border),
+    0 12px 40px oklch(58% 0.09 270 / 0.12),
+    0 32px 80px oklch(58% 0.09 270 / 0.08);
+
+  /* Radii */
+  --r-sm:  6px;
+  --r-md:  10px;
+  --r-lg:  14px;
+  --r-xl:  20px;
+  --r-2xl: 28px;
 }
 
 html,
@@ -53,10 +77,16 @@ body {
 }
 
 body {
-  @apply bg-canvas text-text-primary font-sans antialiased;
+  @apply bg-canvas text-text-primary antialiased;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
   background-image:
-    radial-gradient(1100px 520px at 92% -12%, color-mix(in oklab, var(--accent) 18%, transparent) 0%, transparent 65%),
-    radial-gradient(800px 480px at -10% 110%, color-mix(in oklab, var(--accent-deep) 10%, transparent) 0%, transparent 60%);
+    radial-gradient(1100px 620px at 100% -10%,
+      oklch(90% 0.07 285 / 0.28) 0%, transparent 62%),
+    radial-gradient(900px 540px at -10% 110%,
+      oklch(92% 0.05 220 / 0.22) 0%, transparent 60%);
   background-attachment: fixed;
 }
 
@@ -67,30 +97,31 @@ body {
 }
 
 ::selection {
-  background-color: color-mix(in oklab, var(--focus) 30%, transparent);
+  background-color: oklch(58% 0.22 285 / 0.22);
 }
 
 .cm-editor,
 .cm-editor.cm-focused { outline: none !important; }
 
-/* CodeMirror token classes — see components/editor/theme.ts */
-.tok-slash     { color: var(--text-muted); }
-.tok-namespace { color: var(--accent); }
-.tok-target    { color: var(--text-secondary); }
-.tok-noun      { color: var(--text-primary); }
-.tok-verb      { color: var(--text-primary); }
-.tok-verb-write  { color: var(--write); }
-.tok-verb-danger { color: var(--danger); }
-.tok-flag      { color: var(--text-muted); }
-.tok-value     { color: var(--text-primary); font-weight: 500; }
-.tok-duration  { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.tok-string    { color: var(--text-primary); }
-.tok-ref       { color: var(--text-primary); text-decoration: underline dotted var(--border); text-underline-offset: 4px; }
-.tok-unknown   { color: var(--danger); }
+/* CodeMirror token classes — see components/editor/theme.ts.
+   Command syntax: namespace & verb in brand, target neutral, flags muted. */
+.tok-slash       { color: var(--brand); font-weight: 700; }
+.tok-namespace   { color: var(--brand); font-weight: 600; }
+.tok-target      { color: var(--text-primary); font-weight: 600; }
+.tok-noun        { color: var(--text-primary); }
+.tok-verb        { color: var(--brand-strong); font-weight: 600; }
+.tok-verb-write  { color: var(--write); font-weight: 600; }
+.tok-verb-danger { color: var(--danger); font-weight: 700; }
+.tok-flag        { color: var(--text-muted); }
+.tok-value       { color: var(--text-primary); font-weight: 500; }
+.tok-duration    { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.tok-string      { color: var(--text-primary); }
+.tok-ref         { color: var(--brand); text-decoration: underline dotted var(--border); text-underline-offset: 4px; }
+.tok-unknown     { color: var(--danger); }
 
-/* Wavy error underline (same asset as before, color bound to token) */
+/* Wavy error underline */
 .tok-error {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='3' viewBox='0 0 6 3'><path d='M0 2 Q 1.5 0 3 2 Q 4.5 0 6 2' fill='none' stroke='%23FF5A63' stroke-opacity='0.9' stroke-width='1'/></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='3' viewBox='0 0 6 3'><path d='M0 2 Q 1.5 0 3 2 Q 4.5 0 6 2' fill='none' stroke='%23d14545' stroke-opacity='0.95' stroke-width='1'/></svg>");
   background-repeat: repeat-x;
   background-position: 0 100%;
   background-size: 6px 3px;
@@ -98,35 +129,82 @@ body {
   animation: underline-in 200ms cubic-bezier(0.1, 0.6, 0.3, 1) both;
 }
 
-/* Tables: tabular numerics everywhere numbers appear */
 .tabular { font-variant-numeric: tabular-nums; }
 
-/* Brand wordmark — cosmic orange gradient */
 .brand-grad {
-  background-image: linear-gradient(135deg, var(--accent-soft) 0%, var(--accent) 45%, var(--accent-deep) 100%);
+  background-image: linear-gradient(135deg,
+    oklch(70% 0.20 285) 0%,
+    oklch(58% 0.22 285) 55%,
+    oklch(46% 0.24 285) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-/* Soft glow halo behind the hero — fades on reduced motion */
+/* Type presets used across the app */
+.display-hero {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.8rem, 5vw + 1rem, 4.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+}
+.display-xl {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 2rem;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+.display-lg {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.kicker {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Soft halo used behind the hero */
 .hero-halo::before {
   content: "";
   position: absolute;
-  inset: -40px -20px auto auto;
-  width: 320px;
-  height: 320px;
-  background: radial-gradient(closest-side, color-mix(in oklab, var(--accent) 40%, transparent), transparent 70%);
-  filter: blur(30px);
+  inset: -60px -40px auto auto;
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(closest-side,
+    oklch(78% 0.18 285 / 0.35),
+    transparent 70%);
+  filter: blur(28px);
   pointer-events: none;
   z-index: 0;
 }
 
-/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;
     transition: none !important;
   }
   .hero-halo::before { display: none; }
+}
+
+@keyframes underline-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes stream-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(120%); }
+}
+@keyframes pop-in {
+  0%   { opacity: 0; transform: translateY(4px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }

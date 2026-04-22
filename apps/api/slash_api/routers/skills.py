@@ -1,4 +1,4 @@
-"""GET /skills — list loaded skills."""
+"""GET /skills — list loaded skills (with arg specs for UI autocomplete)."""
 
 from fastapi import APIRouter
 
@@ -19,6 +19,19 @@ def list_skills() -> dict:
             "verb": s.verb,
             "mode": s.mode,
             "danger": s.danger,
+            "args": [
+                {
+                    "name": a.name,
+                    "flag": a.flag,
+                    "type": a.type,
+                    "required": a.required,
+                    "default": a.default,
+                    "positional": a.positional,
+                    "repeatable": a.repeatable,
+                    "enum": list(a.enum) if a.enum else None,
+                }
+                for a in s.args
+            ],
         }
         for s in reg.all_skills()
     ]

@@ -1,6 +1,7 @@
 import { ArrowRight } from "lucide-react";
 
 import { Card } from "@/components/ui/Card";
+import { Chip } from "@/components/ui/Chip";
 
 export interface PlanData {
   run_id: string;
@@ -13,28 +14,29 @@ export interface PlanData {
   reason?: string | null;
 }
 
-export function PlanCard({ plan, attached }: { plan: PlanData; attached?: boolean }) {
+export function PlanCard({ plan }: { plan: PlanData; attached?: boolean }) {
   return (
-    <Card rail={plan.danger ? "danger" : "write"} attached={attached}>
-      <div className="p-4 space-y-3">
-        <header className="flex items-center gap-2 text-caption tracking-kicker uppercase text-text-muted">
-          <span>plan</span>
-          <span className="text-border">·</span>
-          <span className="font-mono normal-case tracking-normal text-text-secondary">{plan.skill_id}</span>
+    <Card rail={plan.danger ? "danger" : "write"}>
+      <div className="p-5 space-y-4">
+        <header className="flex items-center gap-2">
+          <Chip kind={plan.danger ? "danger" : "write"}>
+            {plan.danger ? "DANGER" : "PLAN"}
+          </Chip>
+          <span className="font-mono text-small text-text-secondary">{plan.skill_id}</span>
         </header>
 
         {(plan.before || plan.after) && (
-          <div className="font-mono text-mono-body space-y-1">
-            <div className="flex items-center gap-3">
-              <span className="w-14 text-caption tracking-kicker uppercase text-text-muted">before</span>
-              <span className="text-text-secondary">
+          <div className="font-mono text-small space-y-2 bg-surface-sub rounded-lg p-4 border border-border-subtle">
+            <div className="grid grid-cols-[80px_1fr] gap-x-3 items-baseline">
+              <span className="kicker text-text-muted">before</span>
+              <span className="text-text-secondary break-all">
                 {fmt(plan.before?.value) ?? "—"}
               </span>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="w-14 text-caption tracking-kicker uppercase text-text-muted">after</span>
-              <ArrowRight size={11} className="text-text-muted" />
-              <span className="text-text-primary font-medium">
+            <div className="grid grid-cols-[80px_1fr] gap-x-3 items-baseline">
+              <span className="kicker text-brand">after</span>
+              <span className="text-text-primary font-medium flex items-center gap-2 break-all">
+                <ArrowRight size={13} className="text-brand shrink-0" />
                 {fmt(plan.after?.value) ?? "—"}
               </span>
             </div>
@@ -42,16 +44,16 @@ export function PlanCard({ plan, attached }: { plan: PlanData; attached?: boolea
         )}
 
         {plan.rollback_hint && (
-          <div className="pt-2 border-t border-border-subtle">
-            <div className="text-caption tracking-kicker uppercase text-text-muted mb-1">rollback</div>
-            <pre className="text-mono-body font-mono text-text-secondary whitespace-pre-wrap">{plan.rollback_hint}</pre>
+          <div className="rounded-lg bg-warn-soft/60 border border-warn/30 p-3">
+            <div className="kicker text-warn mb-1">rollback</div>
+            <pre className="font-mono text-small text-text-secondary whitespace-pre-wrap">{plan.rollback_hint}</pre>
           </div>
         )}
 
-        <div className="pt-2 border-t border-border-subtle text-small text-text-muted">
+        <div className="text-small text-text-muted">
           {plan.danger
-            ? "needs 1 approver + YES confirmation · audit recorded on apply"
-            : "needs 1 approver · audit recorded on apply"}
+            ? "Needs 1 approver + typed YES confirmation · audit recorded on apply"
+            : "Needs 1 approver · audit recorded on apply"}
         </div>
       </div>
     </Card>

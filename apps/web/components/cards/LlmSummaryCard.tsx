@@ -19,7 +19,6 @@ export interface LlmSummary {
 export function LlmSummaryCard({
   data,
   onSuggestionClick,
-  attached,
 }: {
   data: LlmSummary;
   onSuggestionClick?: (cmd: string) => void;
@@ -29,9 +28,9 @@ export function LlmSummaryCard({
   const hasDivergence = (data.divergence_warnings?.length ?? 0) > 0 && !ackDivergence;
 
   return (
-    <Card rail="llm" attached={attached}>
+    <Card rail="llm">
       {hasDivergence && (
-        <div className="flex items-start gap-2 bg-danger/10 border-b border-danger/40 px-4 py-2">
+        <div className="flex items-start gap-2 bg-danger-soft border-b border-danger/40 px-4 py-2">
           <AlertTriangle size={14} className="text-danger mt-0.5 shrink-0" />
           <div className="flex-1 text-small text-danger">
             <div className="font-medium">LLM summary may not match the raw result.</div>
@@ -44,33 +43,35 @@ export function LlmSummaryCard({
           </div>
           <button
             onClick={() => setAckDivergence(true)}
-            className="text-caption tracking-kicker uppercase text-text-muted hover:text-text-secondary"
+            className="kicker text-text-muted hover:text-text-secondary"
           >
             got it
           </button>
         </div>
       )}
 
-      <header className="flex items-center gap-2 px-4 h-7 border-b border-border-subtle">
-        <Sparkles size={12} className="text-llm" />
+      <header className="flex items-center gap-2 px-5 h-10 bg-llm-soft/60 border-b border-border-subtle">
+        <Sparkles size={14} className="text-brand" />
         <Chip kind="llm">LLM · generated</Chip>
         {data.model && (
-          <span className="text-caption tracking-kicker uppercase text-text-muted">{data.model}</span>
+          <span className="kicker text-text-muted">{data.model}</span>
         )}
       </header>
 
       <div className="divide-y divide-border-subtle">
         {data.summary && (
-          <div className="px-4 py-3 text-body text-text-primary">{data.summary}</div>
+          <div className="px-5 py-4 text-body text-text-primary leading-relaxed">
+            {data.summary}
+          </div>
         )}
 
         {(data.highlights?.length ?? 0) > 0 && (
-          <div className="px-4 py-3">
-            <div className="text-caption tracking-kicker uppercase text-text-muted mb-1">highlights</div>
-            <ul className="space-y-1">
+          <div className="px-5 py-4">
+            <div className="kicker mb-2">highlights</div>
+            <ul className="space-y-1.5">
               {data.highlights!.map((h, i) => (
                 <li key={i} className="text-small text-text-secondary flex gap-2">
-                  <span className="text-text-muted shrink-0">·</span>
+                  <span className="text-brand shrink-0">·</span>
                   <span>{h}</span>
                 </li>
               ))}
@@ -79,20 +80,20 @@ export function LlmSummaryCard({
         )}
 
         {(data.findings?.length ?? 0) > 0 && (
-          <div className="px-4 py-3">
-            <div className="text-caption tracking-kicker uppercase text-text-muted mb-1">findings</div>
-            <ul className="space-y-1">
+          <div className="px-5 py-4">
+            <div className="kicker mb-2">findings</div>
+            <ul className="space-y-1.5">
               {data.findings!.map((f, i) => (
                 <li
                   key={i}
                   className={cn(
-                    "text-small flex gap-2",
+                    "text-small flex gap-3",
                     f.level === "error" && "text-danger",
                     f.level === "warn" && "text-warn",
                     f.level === "info" && "text-text-primary",
                   )}
                 >
-                  <span className="uppercase text-caption tracking-kicker shrink-0 w-10">{f.level}</span>
+                  <span className="kicker shrink-0 w-12">{f.level}</span>
                   <span>{f.detail}</span>
                 </li>
               ))}
@@ -101,14 +102,14 @@ export function LlmSummaryCard({
         )}
 
         {(data.suggested_commands?.length ?? 0) > 0 && (
-          <div className="px-4 py-3">
-            <div className="text-caption tracking-kicker uppercase text-text-muted mb-2">suggested</div>
+          <div className="px-5 py-4">
+            <div className="kicker mb-2">suggested</div>
             <div className="flex flex-wrap gap-2">
               {data.suggested_commands!.map((c, i) => (
                 <button
                   key={i}
                   onClick={() => onSuggestionClick?.(c)}
-                  className="font-mono text-mono-body text-text-primary bg-elevated border border-border-subtle rounded-sm px-2 h-7 hover:border-border transition-colors duration-80 ease-m-instant"
+                  className="font-mono text-small text-text-primary bg-surface-sub border border-border-subtle rounded-full px-3 h-8 hover:border-brand hover:text-brand transition-colors duration-80"
                   title="Click to copy into CommandBar (never auto-runs)"
                 >
                   {c}

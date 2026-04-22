@@ -1,0 +1,31 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: ops.audit.logs
+  name: "Query the local audit log"
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: ops, noun: [audit], verb: logs }
+  mode: read
+  timeout: 5s
+  profile: { kind: none }
+
+  args:
+    - { name: since, flag: --since, type: duration }
+    - { name: user,  flag: --user,  type: string }
+
+  # Reads var/audit.jsonl directly — no subprocess.
+  # See runtime/builtins.py::_audit_query.
+  builtin: audit_query
+
+  output:
+    kind: table
+    columns:
+      - { key: ts,          label: "Time",     renderer: relative-time }
+      - { key: mode,        label: "Mode",     renderer: state-badge }
+      - { key: state,       label: "State",    renderer: state-badge }
+      - { key: skill_id,    label: "Skill" }
+      - { key: command,     label: "Command" }
+      - { key: duration_ms, label: "ms" }

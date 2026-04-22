@@ -1,14 +1,12 @@
-import { ChevronRightSquare } from "lucide-react";
-
-import { Card } from "@/components/ui/Card";
-
 export function UserCommandRow({ text }: { text: string }) {
   return (
-    <Card rail="user">
-      <div className="h-7 flex items-center gap-2 px-4 text-mono-body font-mono">
-        <ChevronRightSquare size={13} className="text-text-muted" />
-        <span className="text-text-primary truncate">{text}</span>
+    <div className="flex justify-end">
+      <div className="max-w-[82%] rounded-xl rounded-br-sm bg-brand-tint border border-brand-soft px-4 py-2.5 shadow-xs">
+        <div className="kicker text-brand/80 mb-0.5">you ran</div>
+        <code className="block font-mono text-[14px] text-text-primary leading-snug break-words">
+          {text}
+        </code>
       </div>
-    </Card>
+    </div>
   );
 }
