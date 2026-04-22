@@ -164,7 +164,7 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <ContextBar />
+      <ContextBar onTypeCommand={handleSuggestion} />
       <Conversation
         turns={turns}
         onApproved={onApproved}
