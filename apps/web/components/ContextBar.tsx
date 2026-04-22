@@ -1,36 +1,55 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Box, Boxes, Cloud, Pin } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 
+type Tier = "critical" | "staging" | "safe";
+
 interface ContextState {
+  selected_k8s: string | null;
+  selected_k8s_tier: Tier;
+  selected_aws: string | null;
+  selected_aws_tier: Tier;
+  selected_gcp: string | null;
+  selected_gcp_tier: Tier;
+  drift_k8s: number | null;
+  drift_aws: number | null;
+  drift_gcp: number | null;
   llm_enabled: boolean;
   llm_configured: boolean;
 }
 
+type ContextKind = "k8s" | "aws" | "gcp";
+
 export function ContextBar() {
   const [state, setState] = useState<ContextState | null>(null);
 
-  useEffect(() => { refresh(); }, []);
-
-  async function refresh() {
+  const refresh = useCallback(async () => {
     const r = await fetch("/api/context");
     if (r.ok) setState(await r.json());
-  }
+  }, []);
 
-  async function setLlm(enabled: boolean) {
-    const r = await fetch("/api/context", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ llm_enabled: enabled }),
-    });
-    if (r.ok) setState(await r.json());
-  }
+  useEffect(() => {
+    void refresh();
+    // Poll every 3s so pin changes made via `/ctx pin` in the CommandBar
+    // show up in the top bar without a manual reload.
+    const id = window.setInterval(refresh, 3000);
+    return () => window.clearInterval(id);
+  }, [refresh]);
+
+  const pins: { kind: ContextKind; name: string | null; tier: Tier }[] = state
+    ? [
+        { kind: "k8s", name: state.selected_k8s, tier: state.selected_k8s_tier },
+        { kind: "aws", name: state.selected_aws, tier: state.selected_aws_tier },
+        { kind: "gcp", name: state.selected_gcp, tier: state.selected_gcp_tier },
+      ]
+    : [];
+  const anyPinned = pins.some((p) => p.name);
 
   return (
-    <header className="h-14 flex items-center px-8 border-b border-border-subtle bg-surface/70 backdrop-blur-md">
+    <header className="h-14 flex items-center px-8 border-b border-border-subtle bg-surface/75 backdrop-blur-md">
       <div className="flex items-center gap-3 select-none">
         <span
           aria-hidden
@@ -42,7 +61,7 @@ export function ContextBar() {
           SRE Copilot
         </span>
         <span
-          className="ml-2 inline-flex items-center gap-1.5 h-5 px-2 rounded-full bg-ok-soft text-ok text-caption tracking-chip"
+          className="ml-1 inline-flex items-center gap-1.5 h-5 px-2 rounded-full bg-ok-soft text-ok text-caption tracking-chip"
           title="cockpit online"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-ok" aria-hidden />
@@ -50,55 +69,103 @@ export function ContextBar() {
         </span>
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
-        <LlmToggle
-          configured={!!state?.llm_configured}
-          enabled={!!state?.llm_enabled}
-          onChange={setLlm}
-        />
+      <div className="ml-auto flex items-center gap-2">
+        {!anyPinned && (
+          <span className="text-caption tracking-chip text-text-muted font-mono">
+            no pins · type <span className="text-brand">/ctx pin</span> to set up
+          </span>
+        )}
+        {pins.map((p) =>
+          p.name ? (
+            <PinPill key={p.kind} kind={p.kind} name={p.name} tier={p.tier} />
+          ) : null,
+        )}
       </div>
     </header>
   );
 }
 
-function LlmToggle({
-  configured,
-  enabled,
-  onChange,
+// ── PinPill ────────────────────────────────────────────────────────────
+
+const KIND_ICON: Record<ContextKind, React.ComponentType<{ size?: number; className?: string }>> = {
+  k8s: Boxes,
+  aws: Box,
+  gcp: Cloud,
+};
+
+const KIND_LABEL: Record<ContextKind, string> = {
+  k8s: "k8s",
+  aws: "aws",
+  gcp: "gcp",
+};
+
+function PinPill({
+  kind,
+  name,
+  tier,
 }: {
-  configured: boolean;
-  enabled: boolean;
-  onChange: (v: boolean) => void;
+  kind: ContextKind;
+  name: string;
+  tier: Tier;
 }) {
+  const Icon = KIND_ICON[kind];
+  const classes = tierClasses(tier);
   return (
-    <button
-      disabled={!configured}
-      onClick={() => onChange(!enabled)}
+    <div
       className={cn(
-        "group inline-flex items-center gap-2 h-8 pl-2.5 pr-3 rounded-full border transition-all duration-160 ease-m-instant",
-        configured
-          ? enabled
-            ? "bg-brand-tint border-brand/40 text-brand-strong shadow-xs"
-            : "bg-surface border-border-subtle text-text-secondary hover:border-border hover:bg-elevated"
-          : "bg-surface border-border-subtle text-text-muted/70 cursor-not-allowed",
+        "inline-flex items-center gap-2 h-8 px-3 rounded-full font-mono text-[13px] border",
+        classes.bg,
+        classes.border,
+        classes.text,
       )}
-      title={
-        !configured
-          ? "GEMINI_API_KEY not set — LLM summary unavailable"
-          : enabled
-            ? "LLM explain: on"
-            : "LLM explain: off"
-      }
+      title={`${KIND_LABEL[kind]} · ${name} · tier: ${tier}`}
     >
-      <Sparkles
-        size={13}
-        className={cn(
-          configured && enabled ? "text-brand" : "text-text-muted",
-        )}
-      />
-      <span className="text-caption font-mono tracking-chip">
-        llm · {enabled ? "on" : "off"}
+      <Pin size={11} className={classes.icon} aria-hidden />
+      <Icon size={13} className={classes.icon} aria-hidden />
+      <span className={cn("text-caption tracking-chip uppercase opacity-75", classes.meta)}>
+        {KIND_LABEL[kind]}
       </span>
-    </button>
+      <span className="text-border" aria-hidden>·</span>
+      <span className="font-semibold">{name}</span>
+      {tier !== "safe" && (
+        <span
+          className={cn(
+            "ml-0.5 text-[10px] px-1.5 h-4 rounded-full flex items-center font-semibold tracking-chip uppercase",
+            classes.badge,
+          )}
+        >
+          {tier}
+        </span>
+      )}
+    </div>
   );
+}
+
+function tierClasses(tier: Tier) {
+  if (tier === "critical")
+    return {
+      bg: "bg-tier-critical-bg",
+      border: "border-tier-critical/40",
+      text: "text-tier-critical",
+      icon: "text-tier-critical",
+      meta: "text-tier-critical/80",
+      badge: "bg-tier-critical text-white",
+    };
+  if (tier === "staging")
+    return {
+      bg: "bg-tier-staging-bg",
+      border: "border-tier-staging/50",
+      text: "text-[oklch(35%_0.10_70)]",
+      icon: "text-tier-staging",
+      meta: "text-tier-staging/80",
+      badge: "bg-tier-staging text-[oklch(25%_0.08_70)]",
+    };
+  return {
+    bg: "bg-brand-tint",
+    border: "border-brand-soft",
+    text: "text-brand-strong",
+    icon: "text-brand",
+    meta: "text-brand/80",
+    badge: "bg-brand text-white",
+  };
 }

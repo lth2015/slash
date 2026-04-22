@@ -36,17 +36,58 @@ interface Props {
   disabled?: boolean;
 }
 
+type Tier = "critical" | "staging" | "safe";
+
+interface PinState {
+  k8s: Tier;
+  aws: Tier;
+  gcp: Tier;
+}
+
 export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled }: Props) {
   const parentRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [focused, setFocused] = useState(false);
   const [status, setStatus] = useState<ParseStatus>({ kind: "idle" });
+  const [pins, setPins] = useState<PinState>({ k8s: "safe", aws: "safe", gcp: "safe" });
   const theme = useMemo(() => commandTheme, []);
 
   const skills = useSkills();
   const [highlight, setHighlight] = useState(0);
 
   const suggestions = useMemo(() => filterSkills(skills, value), [skills, value]);
+
+  // Derive which tier color should saturate the focus ring: peek at the first
+  // ~2 tokens of the input; if it's /cluster... → k8s tier, /infra aws → aws,
+  // /infra gcp → gcp. Anything else → safe (no special tint).
+  const activeTier = useMemo<Tier>(() => {
+    const head = value.trimStart();
+    if (head.startsWith("/cluster")) return pins.k8s;
+    if (head.startsWith("/infra aws")) return pins.aws;
+    if (head.startsWith("/infra gcp")) return pins.gcp;
+    return "safe";
+  }, [value, pins]);
+
+  // Poll /context for the pin state — same interval as ContextBar so they
+  // stay in sync without a global store.
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const r = await fetch("/api/context");
+        if (!r.ok || !alive) return;
+        const body = await r.json();
+        setPins({
+          k8s: body.selected_k8s_tier ?? "safe",
+          aws: body.selected_aws_tier ?? "safe",
+          gcp: body.selected_gcp_tier ?? "safe",
+        });
+      } catch { /* offline or starting up */ }
+    };
+    void load();
+    const id = window.setInterval(load, 3000);
+    return () => { alive = false; window.clearInterval(id); };
+  }, []);
 
   // Open if input starts with '/' and has suggestions, and current text doesn't
   // already match a fully-resolved stem (avoid popping over a parsed command).
@@ -294,7 +335,7 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
             className={cn(
               "flex items-stretch rounded-xl border bg-surface transition-all duration-160 ease-m-instant",
               focused
-                ? "border-brand shadow-brand"
+                ? tierBorderClass(activeTier)
                 : "border-border-subtle shadow-xs",
               disabled && "opacity-60 pointer-events-none",
             )}
@@ -369,4 +410,13 @@ function StatusLine({ status }: { status: ParseStatus }) {
       )}
     </div>
   );
+}
+
+// Focus-ring color driven by the current session pin tier for the namespace
+// under the caret. This is the Environment Aura's single peripheral-vision
+// channel — type in prod, you type against a warm saturated ring.
+function tierBorderClass(tier: "critical" | "staging" | "safe"): string {
+  if (tier === "critical") return "border-tier-critical shadow-[0_0_0_3px_oklch(62%_0.20_30/0.18)]";
+  if (tier === "staging") return "border-tier-staging shadow-[0_0_0_3px_oklch(70%_0.14_75/0.18)]";
+  return "border-brand shadow-brand";
 }

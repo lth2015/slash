@@ -54,13 +54,15 @@ export function useSkills() {
   return skills;
 }
 
-/** Build the command template + insertion form for a skill. */
+/** Build the command template + insertion form for a skill.
+ *
+ * /cluster commands no longer carry a positional ctx — strict mode resolves
+ * it from the session pin or a --ctx override at execute time. Templates
+ * omit <ctx> so the palette inserts a clean, shorter command form. */
 export function renderSkill(skill: Skill): { template: string; insert: string; caretAt: number } {
   const parts: string[] = ["/", skill.namespace];
   if (skill.target === "aws" || skill.target === "gcp") {
     parts.push(" ", skill.target);
-  } else if (skill.namespace === "cluster") {
-    parts.push(" ", "<ctx>");
   }
   for (const n of skill.noun) parts.push(" ", n);
   parts.push(" ", skill.verb);
@@ -126,7 +128,6 @@ export function filterSkills(skills: Skill[], query: string): Suggestion[] {
 function stemOf(s: Skill): string {
   const parts: string[] = ["/", s.namespace];
   if (s.target === "aws" || s.target === "gcp") parts.push(" ", s.target);
-  else if (s.namespace === "cluster") parts.push(" ", "<ctx>");
   for (const n of s.noun) parts.push(" ", n);
   parts.push(" ", s.verb);
   return parts.join("");

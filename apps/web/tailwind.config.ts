@@ -28,6 +28,17 @@ const config: Config = {
           soft:      "var(--brand-soft)",
           tint:      "var(--brand-tint)",
         },
+        // Tier palette (Environment Aura). Named per tier so utility classes
+        // can read cleanly: bg-tier-critical-soft / text-tier-critical / etc.
+        "tier-critical":      "var(--tier-critical)",
+        "tier-critical-soft": "var(--tier-critical-soft)",
+        "tier-critical-bg":   "var(--tier-critical-bg)",
+        "tier-staging":       "var(--tier-staging)",
+        "tier-staging-soft":  "var(--tier-staging-soft)",
+        "tier-staging-bg":    "var(--tier-staging-bg)",
+        "tier-safe":          "var(--tier-safe)",
+        "tier-safe-soft":     "var(--tier-safe-soft)",
+        "tier-safe-bg":       "var(--tier-safe-bg)",
         ok:      "var(--ok)",
         "ok-soft": "var(--ok-soft)",
         write:   "var(--write)",

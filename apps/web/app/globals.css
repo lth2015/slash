@@ -52,6 +52,20 @@
   --accent-deep:    var(--brand-strong);
   --accent-soft:    var(--brand-soft);
 
+  /* Pin tiers — "Environment Aura" color language.
+     critical = prod-tier, saturated red-orange (bumps attention in peripheral vision)
+     staging  = staging-tier, amber (cautionary but not alarming)
+     safe     = dev/default, reuses brand (neutral, no special treatment) */
+  --tier-critical:      oklch(62% 0.20 30);
+  --tier-critical-soft: oklch(95% 0.06 30);
+  --tier-critical-bg:   oklch(97%   0.03 30);
+  --tier-staging:       oklch(70% 0.14 75);
+  --tier-staging-soft:  oklch(95% 0.09 75);
+  --tier-staging-bg:    oklch(97%   0.05 75);
+  --tier-safe:          var(--brand);
+  --tier-safe-soft:     var(--brand-soft);
+  --tier-safe-bg:       var(--brand-tint);
+
   /* Shadows — brand-tinted, never pure black */
   --shadow-xs:  0 1px 2px oklch(70% 0.04 270 / 0.06);
   --shadow-sm:  0 1px 3px oklch(70% 0.04 270 / 0.10), 0 1px 2px oklch(70% 0.04 270 / 0.06);
