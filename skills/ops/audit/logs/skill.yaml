@@ -3,6 +3,7 @@ kind: Skill
 metadata:
   id: ops.audit.logs
   name: "Query the local audit log"
+  description: "Filter var/audit.jsonl by --since and --user. Reads the file directly; no subprocess."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 

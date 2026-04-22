@@ -18,6 +18,8 @@ export interface SkillArg {
 
 export interface Skill {
   id: string;
+  name?: string;
+  description?: string;
   namespace: string;
   target: string | null;        // for /infra: aws|gcp; for /cluster: _any
   noun: string[];
@@ -251,8 +253,13 @@ export function SuggestionsPanel({
         <aside className="p-7 bg-surface-sub/60 max-h-[68vh] overflow-y-auto">
           <div className="kicker text-[12px] text-brand">{current.sub}</div>
           <div className="mt-3 font-display text-[26px] leading-tight font-bold text-text-primary tracking-tight">
-            {current.skill.id}
+            {current.skill.name || current.skill.id}
           </div>
+          {current.skill.description && (
+            <p className="mt-3 text-[14px] leading-relaxed text-text-secondary">
+              {current.skill.description}
+            </p>
+          )}
 
           <div className="mt-6 rounded-lg bg-surface border border-border-subtle p-5">
             <div className="kicker text-[12px] text-text-muted mb-2">template</div>

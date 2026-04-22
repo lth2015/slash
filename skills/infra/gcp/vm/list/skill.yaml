@@ -3,6 +3,7 @@ kind: Skill
 metadata:
   id: infra.gcp.vm.list
   name: "List GCP Compute Engine instances"
+  description: "List GCE instances, optionally scoped to a zone via --zone."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 

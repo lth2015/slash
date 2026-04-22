@@ -3,6 +3,7 @@ kind: Skill
 metadata:
   id: cluster.scale
   name: "Scale a Deployment"
+  description: "Change a Deployment's replica count. HPA, if present, will override after."
   version: 0.1.0
   labels: { stability: beta, risk: medium }
 
@@ -19,6 +20,21 @@ spec:
     - { name: replicas, flag: --replicas, type: int, required: true, min: 0, max: 1000 }
     - { name: ns,       flag: --ns,       type: string, required: true }
     - { name: reason,   flag: --reason,   type: string, required: true }
+
+  preflight:
+    # Confirm the Deployment exists before we scale — a non-zero exit here
+    # blocks /execute (for read-time plan build) and blocks /approve (for
+    # apply-time race protection: resource may have been deleted between
+    # plan creation and approval).
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - deployment
+      - "${deploy}"
 
   plan:
     argv:

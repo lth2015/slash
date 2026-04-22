@@ -3,6 +3,7 @@ kind: Skill
 metadata:
   id: cluster.logs
   name: "Pod logs"
+  description: "Tail a pod's logs. --since bounds the lookback (e.g. 10m, 1h). Does not follow."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 

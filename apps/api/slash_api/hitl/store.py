@@ -32,6 +32,8 @@ class PendingPlan:
     profile_kind: str | None = None
     profile_name: str | None = None
     output_spec: dict = field(default_factory=dict)
+    # Pre-rendered preflight argv (run immediately before bash.argv on approve).
+    preflight_argv: list[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
 
     # decision

@@ -39,7 +39,11 @@ class SkillSpec:
     mode: str  # "read" | "write"
     args: tuple[ArgSpec, ...]
     danger: bool = False
-    manifest_path: str | None = None   # absolute path to skill.yaml, set by loader
+    # Human-readable
+    name: str = ""
+    description: str = ""
+    # Path captured at load time so execute.py can re-read the full manifest
+    manifest_path: str | None = None
 
     @property
     def command_path(self) -> tuple[str, ...]:

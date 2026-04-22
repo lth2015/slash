@@ -129,7 +129,40 @@ def decide_approval(
         remove(run_id)
         return DecisionResponse(run_id=run_id, decided=True, decision="reject", state="rejected")
 
-    # Approve path — run bash now, return full result
+    # Approve path — replay preflight (resource may have changed since plan),
+    # then run the real command.
+    if plan.preflight_argv:
+        pf_result = run_bash(plan.preflight_argv, plan.env, min(plan.timeout_s, 15.0))
+        if pf_result.timed_out or pf_result.exit_code != 0:
+            first = pf_result.stderr.strip().splitlines()[0] if pf_result.stderr.strip() else ""
+            err_msg = (
+                "preflight timed out" if pf_result.timed_out else
+                f"preflight exited {pf_result.exit_code}" + (f": {first}" if first else "")
+            )
+            audit.append({
+                "run_id": run_id,
+                "user": user(),
+                "actor": x_slash_actor,
+                "command": plan.command,
+                "skill_id": plan.skill_id,
+                "skill_version": plan.skill_version,
+                "mode": "write",
+                "state": "error",
+                "approval_reason": plan.reason or req.comment,
+                "profile": {"kind": plan.profile_kind, "name": plan.profile_name},
+                "summary": f"preflight blocked apply: {err_msg}",
+            })
+            remove(run_id)
+            return DecisionResponse(
+                run_id=run_id,
+                decided=True,
+                decision="approve",
+                state="error",
+                error_code="PreflightFailed",
+                error_message=err_msg,
+                output_spec=plan.output_spec,
+            )
+
     result = run_bash(plan.argv, plan.env, plan.timeout_s)
     state, outputs, err_code, err_msg = _shape_result(result, plan.output_spec)
 
@@ -173,9 +206,10 @@ def decide_approval(
 def _shape_result(result: RunResult, output_spec: dict) -> tuple[str, Any, str | None, str | None]:
     if result.timed_out:
         return "error", None, "Timeout", "Command exceeded its timeout."
-    if result.exit_code != 0:
+    success_codes = output_spec.get("success_codes") or [0]
+    if result.exit_code not in success_codes:
         first = result.stderr.strip().splitlines()[0] if result.stderr.strip() else "no stderr"
-        return "error", None, "ExecutionError", f"exit code {result.exit_code}: {first}"
+        return "error", None, "ExecutionError", f"exit code {result.exit_code} (expected {success_codes}): {first}"
     try:
         outputs = parse_output(result.stdout, output_spec)
     except Exception as exc:  # noqa: BLE001

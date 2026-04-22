@@ -3,6 +3,7 @@ kind: Skill
 metadata:
   id: infra.aws.vm.list
   name: "List AWS EC2 instances"
+  description: "List EC2 instances in a region. Repeat --tag to add Name=tag:<k>,Values=<v> filters."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 

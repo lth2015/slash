@@ -13,6 +13,8 @@ def list_skills() -> dict:
     items = [
         {
             "id": s.id,
+            "name": s.name,
+            "description": s.description,
             "namespace": s.namespace,
             "target": s.target,
             "noun": list(s.noun),

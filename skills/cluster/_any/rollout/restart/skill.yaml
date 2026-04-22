@@ -3,6 +3,7 @@ kind: Skill
 metadata:
   id: cluster.rollout.restart
   name: "Restart a Deployment"
+  description: "Trigger a rolling restart by patching pod-template annotations. Pods cycle one-by-one."
   version: 0.1.0
   labels: { stability: beta, risk: medium }
 
@@ -18,6 +19,17 @@ spec:
     - { name: deploy, type: string, positional: true, required: true }
     - { name: ns,     flag: --ns, type: string, required: true }
     - { name: reason, flag: --reason, type: string, required: true }
+
+  preflight:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - deployment
+      - "${deploy}"
 
   bash:
     argv:

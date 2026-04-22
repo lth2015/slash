@@ -72,6 +72,8 @@ def load_registry(skills_dir: Path) -> SkillRegistry:
             mode=skill.mode,
             args=skill.args,
             danger=skill.danger,
+            name=skill.name,
+            description=skill.description,
             manifest_path=str(manifest_path.resolve()),
         )
         try:
@@ -128,6 +130,35 @@ def _load_one(manifest_path: Path) -> SkillSpec:
 
     args = tuple(_arg(a) for a in (spec.get("args") or []))
 
+    # Preflight sanity: description must be a short string if present.
+    description = str(meta.get("description") or "").strip()
+    if len(description) > 200:
+        raise RegistryError(
+            f"metadata.description too long ({len(description)} chars, max 200)"
+        )
+
+    # Preflight block validation: if present, must be a mapping with argv list.
+    preflight = spec.get("preflight")
+    if preflight is not None:
+        if not isinstance(preflight, dict):
+            raise RegistryError("spec.preflight must be a mapping")
+        pf_argv = preflight.get("argv")
+        if not isinstance(pf_argv, list) or not all(isinstance(x, str) for x in pf_argv):
+            raise RegistryError("spec.preflight.argv must be a list of strings")
+
+    # success_codes must be list of ints if present.
+    success_codes = (spec.get("output") or {}).get("success_codes")
+    if success_codes is not None:
+        if not isinstance(success_codes, list) or not all(isinstance(x, int) for x in success_codes):
+            raise RegistryError("spec.output.success_codes must be a list of ints")
+
+    # danger_reason required when danger: true
+    if bool(spec.get("danger", False)):
+        if not str(spec.get("danger_reason") or "").strip():
+            raise RegistryError(
+                "spec.danger_reason required when danger: true"
+            )
+
     return SkillSpec(
         id=str(meta["id"]),
         namespace=namespace,
@@ -137,6 +168,8 @@ def _load_one(manifest_path: Path) -> SkillSpec:
         mode=mode,
         args=args,
         danger=bool(spec.get("danger", False)),
+        name=str(meta.get("name") or ""),
+        description=description,
     )
 
 

@@ -3,6 +3,7 @@ kind: Skill
 metadata:
   id: cluster.list.pod
   name: "List pods in a namespace"
+  description: "List pods in --ns with phase, node, IP, and create time. Optional --selector applies label matching."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 

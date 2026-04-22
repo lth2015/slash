@@ -3,6 +3,7 @@ kind: Skill
 metadata:
   id: cluster.top.pod
   name: "Pod resource usage"
+  description: "Show CPU and memory per pod (requires metrics-server). Optional --ns narrows scope."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 

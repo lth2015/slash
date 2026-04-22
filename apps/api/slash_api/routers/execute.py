@@ -178,6 +178,7 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
     if skill.mode == "write":
         argv = build_argv(manifest, ctx)
         plan_before, plan_after = _render_plan(manifest, ctx, env_update, timeout_s)
+        pf_argv = _render_preflight(manifest, ctx)
         plan = PendingPlan(
             run_id=run_id,
             command=req.text,
@@ -196,6 +197,7 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             profile_kind=ctx.profile_kind,
             profile_name=ctx.profile_name,
             output_spec=output_spec,
+            preflight_argv=pf_argv,
         )
         put_plan(plan)
 
@@ -258,6 +260,33 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
 
     argv = build_argv(manifest, ctx)
     env = merged_env(env_update)
+
+    # Preflight: optional guard that must exit 0 before we run the real command.
+    pf_err = _run_preflight(manifest, ctx, env, timeout_s)
+    if pf_err is not None:
+        audit.append({
+            "run_id": run_id,
+            "user": user(),
+            "command": req.text,
+            "skill_id": skill.id,
+            "skill_version": _skill_version(manifest),
+            "mode": "read",
+            "state": "error",
+            "profile": {"kind": ctx.profile_kind, "name": ctx.profile_name},
+            "summary": f"preflight failed: {pf_err}",
+        })
+        return ExecuteResponse(
+            run_id=run_id,
+            state="error",
+            skill_id=skill.id,
+            mode="read",
+            danger=skill.danger,
+            argv=argv,
+            output_spec=output_spec,
+            error_code="PreflightFailed",
+            error_message=pf_err,
+        )
+
     result = run_bash(argv, env, timeout_s)
     state, outputs, err_code, err_msg = _shape_result(result, output_spec)
 
@@ -298,18 +327,49 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
 def _shape_result(result: RunResult, output_spec: dict) -> tuple[str, Any, str | None, str | None]:
     if result.timed_out:
         return "error", None, "Timeout", "Command exceeded its timeout."
-    if result.exit_code != 0:
+    success_codes = output_spec.get("success_codes") or [0]
+    if result.exit_code not in success_codes:
+        stderr_line = result.stderr.strip().splitlines()[0] if result.stderr.strip() else "no stderr"
         return (
             "error",
             None,
             "ExecutionError",
-            f"exit code {result.exit_code}: {result.stderr.strip().splitlines()[0] if result.stderr.strip() else 'no stderr'}",
+            f"exit code {result.exit_code} (expected {success_codes}): {stderr_line}",
         )
     try:
         outputs = parse_output(result.stdout, output_spec)
     except Exception as exc:  # noqa: BLE001
         return "error", None, "OutputParseError", str(exc)
     return "ok", outputs, None, None
+
+
+def _render_preflight(manifest: dict, ctx: BuildContext) -> list[str]:
+    """Interpolate the skill's preflight.argv list. Returns [] if no preflight
+    is declared. Kept separate from execution so /execute can stash the rendered
+    argv on the PendingPlan and approvals can replay it at approve-time."""
+    pf = (manifest.get("spec", {}).get("preflight") or {})
+    argv_tmpl = pf.get("argv")
+    if not isinstance(argv_tmpl, list) or not argv_tmpl:
+        return []
+    from slash_api.runtime.builder import _interpolate
+
+    return [_interpolate(el, ctx) if isinstance(el, str) else str(el) for el in argv_tmpl]
+
+
+def _run_preflight(manifest: dict, ctx: BuildContext, env: dict[str, str], timeout_s: float) -> str | None:
+    """Run the skill's preflight.argv if present. Return None on success or a
+    one-line error message on failure. Preflight uses the same env as the main
+    command but its own argv template."""
+    argv = _render_preflight(manifest, ctx)
+    if not argv:
+        return None
+    result = run_bash(argv, env, min(timeout_s, 15.0))
+    if result.timed_out:
+        return "preflight check timed out"
+    if result.exit_code != 0:
+        first = result.stderr.strip().splitlines()[0] if result.stderr.strip() else ""
+        return f"preflight exited {result.exit_code}" + (f": {first}" if first else "")
+    return None
 
 
 def _brief_summary(outputs: Any) -> str:

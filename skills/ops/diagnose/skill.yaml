@@ -3,6 +3,7 @@ kind: Skill
 metadata:
   id: ops.diagnose
   name: "Diagnose (LLM-assisted summary over a target)"
+  description: "Summarize recent audit rows mentioning <target>. If LLM is on, Gemini adds analysis."
   version: 0.1.0
   labels: { stability: alpha, risk: low }
 

@@ -3,6 +3,7 @@ kind: Skill
 metadata:
   id: infra.aws.vm.get
   name: "Get AWS EC2 instance detail"
+  description: "Fetch one EC2 instance by id. Returns the same JSON shape as list, scoped to a single instance."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 

@@ -41,6 +41,7 @@ kind: Skill
 metadata:
   id: infra.aws.vm.list
   name: "List AWS VMs"
+  description: "List EC2 instances in a region."   # 1-liner shown in the command palette
   version: 0.1.0
   owners: ["sre@example.com"]
   labels: { stability: beta, risk: low }
@@ -55,7 +56,15 @@ spec:
   # ---- profile source ----
   profile:
     kind: aws            # aws | gcp | k8s
-    required: true       # 执行前 preflight 检查凭据
+    required: true       # 执行前检查凭据是否就位
+
+  # ---- preflight (optional) ----
+  # Blocking argv check run before bash.argv. Non-zero exit => PreflightFailed,
+  # bash.argv is never executed. For write skills, preflight is also replayed at
+  # approve-time so that a deleted-since-plan resource is caught before apply.
+  # preflight:
+  #   argv: [kubectl, --context, "${profile.k8s.context}", -n, "${ns}",
+  #          get, deployment, "${deploy}"]
 
   # ---- strongly typed args ----
   args:
@@ -89,6 +98,9 @@ spec:
     parse: json
     # jq-like selector that narrows down to a list of rows
     path: "Reservations[].Instances[]"
+    # Optional: which exit codes count as success (default [0]). Useful for CLIs
+    # that return a non-zero "nothing matched" code without actually erroring.
+    # success_codes: [0, 2]
     columns:
       - { key: InstanceId,  label: "ID",       width: 20 }
       - { key: Tags.Name,   label: "Name",     width: 28, fallback: "-" }

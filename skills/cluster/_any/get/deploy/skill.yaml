@@ -3,6 +3,7 @@ kind: Skill
 metadata:
   id: cluster.get.deploy
   name: "Get Deployment detail"
+  description: "Fetch one Deployment as raw JSON — spec, status, and replica counts."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 
