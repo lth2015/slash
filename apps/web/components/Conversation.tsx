@@ -100,6 +100,8 @@ function TurnView({
           runId={turn.plan.run_id}
           danger={turn.plan.danger}
           reason={turn.plan.reason ?? undefined}
+          ctxName={turn.plan.profile_name ?? null}
+          ctxKind={turn.plan.profile_kind ?? null}
           onDecided={(approved, payload) =>
             approved ? onApproved(turn.plan.run_id, payload) : onRejected(turn.plan.run_id)
           }

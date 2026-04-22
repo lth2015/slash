@@ -53,6 +53,8 @@ export default function Home() {
               after: body.after,
               rollback_hint: null,
               reason: null,
+              profile_kind: body.profile_kind ?? null,
+              profile_name: body.profile_name ?? null,
               drift: body.drift ?? null,
             },
           },

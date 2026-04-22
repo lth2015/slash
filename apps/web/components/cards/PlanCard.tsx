@@ -12,6 +12,9 @@ export interface PlanData {
   after?: { value?: unknown } | null;
   rollback_hint?: string | null;
   reason?: string | null;
+  /** The resolved profile this plan will apply against (pin or --ctx). */
+  profile_kind?: "k8s" | "aws" | "gcp" | null;
+  profile_name?: string | null;
   /** Populated when the write was staged within 60s of a pin change —
    *  drives the drift banner at the top of the card. */
   drift?: {

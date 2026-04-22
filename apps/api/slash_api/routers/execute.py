@@ -60,6 +60,11 @@ class ExecuteResponse(BaseModel):
     rollback_command: str | None = None  # pre-rendered, parse-ready slash command
     before: dict | None = None
     after: dict | None = None
+    # Resolved profile — the ctx/profile this run will target. For danger
+    # skills the Approval card requires the reviewer to type this back
+    # verbatim as the confirmation token.
+    profile_kind: str | None = None
+    profile_name: str | None = None
     # Drift guard — populated when a write is issued within 60s of a pin
     # change. Shape: {"kind": "k8s", "name": "prod", "since_seconds": 14}.
     drift: dict | None = None
@@ -259,6 +264,8 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             before=plan.before,
             after=plan.after,
             output_spec=output_spec,
+            profile_kind=ctx.profile_kind,
+            profile_name=ctx.profile_name,
             drift=drift_info,
         )
 

@@ -107,12 +107,22 @@ def decide_approval(
     if plan.decision is not None:
         raise HTTPException(status_code=409, detail={"code": "AlreadyDecided", "message": "plan already decided"})
 
-    # Danger gate
-    if plan.danger and req.decision == "approve" and (req.yes_token or "").strip() != "YES":
-        raise HTTPException(
-            status_code=400,
-            detail={"code": "DangerConfirmRequired", "message": "Type YES in yes_token to approve a danger plan."},
-        )
+    # Danger gate — require the approver to type the environment name back.
+    # This is a stronger filter than "YES" because it forces the approver to
+    # read the resolved context (which is what they're actually committing
+    # to), and typos reveal misapprehensions about the target.
+    if plan.danger and req.decision == "approve":
+        want = (plan.profile_name or "YES").strip()
+        got = (req.yes_token or "").strip()
+        if got != want:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "DangerConfirmRequired",
+                    "message": f"Type the environment name {want!r} to approve this danger plan.",
+                    "expected": want,
+                },
+            )
 
     decided = decide(run_id, decision=req.decision, by=x_slash_actor, reason=req.comment)
     if decided is None:
