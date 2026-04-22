@@ -1,0 +1,24 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: ops.diagnose
+  name: "Diagnose (LLM-assisted summary over a target)"
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: ops, noun: [], verb: diagnose }
+  mode: read
+  timeout: 30s
+  profile: { kind: none }
+
+  args:
+    - { name: target, type: string, positional: true, required: true }
+
+  # Built-in: composes audit.logs filtered by target and asks LLM to summarize.
+  # Still honors the LLM toggle — if off, returns the raw audit rows only.
+  builtin: diagnose
+
+  output:
+    parse: json
+    kind: object

@@ -1,313 +1,206 @@
-# 03 · 架构（Architecture）
+# 03 · 架构
 
-> 本文件是 Slash 的系统架构蓝图。任何代码结构、技术选型、接口定义须与本文件一致；若冲突，必须先修文档，再改代码。
-
-## 1. 架构总览
+## 1. 总览
 
 ```
-                    ┌──────────────────────────────────────────────┐
-                    │                 Web UI (Next.js)              │
-                    │  Command Bar · Explain Pane · Approval Inbox  │
-                    │  Audit Viewer · Skill Browser · Output Panel  │
-                    └────────────────┬──────────────┬──────────────┘
-                                     │ HTTPS (JSON) │ WebSocket (log/plan stream)
-                                     │              │
-                    ┌────────────────┴──────────────┴──────────────┐
-                    │                  API Gateway                  │
-                    │  auth (OS user) · rate-limit · request-id     │
-                    └────────────────┬──────────────────────────────┘
-                                     │
-        ┌────────────────────────────┼────────────────────────────┐
-        │                            │                            │
-┌───────▼────────┐          ┌────────▼────────┐          ┌────────▼────────┐
-│   Parser &     │          │   Executor &    │          │   Audit &        │
-│   Validator    │──AST────▶│   HITL Engine   │──events─▶│   Git Recorder   │
-│  (EBNF, types) │  Plan    │  (sandbox)      │          │  (SQLite + Git)  │
-└───────┬────────┘          └────────┬────────┘          └──────────────────┘
-        │                            │
-        │                  ┌─────────▼──────────┐
-        │                  │  Skill Registry &   │
-        └─────metadata────▶│  Loader (hot-reload)│
-                           └─────────┬──────────┘
-                                     │
-                  ┌──────────────────┼──────────────────┐
-                  │                  │                  │
-         ┌────────▼──────┐  ┌────────▼──────┐  ┌────────▼──────┐
-         │  Provider:    │  │  Provider:    │  │  Provider:    │
-         │  aws (boto3)  │  │  gcp (google- │  │  k8s (kube-   │
-         │               │  │   cloud-*)    │  │   client)     │
-         └───────────────┘  └───────────────┘  └───────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                        Web UI (one window)                            │
+│  ┌ Context Bar (AWS profile · GCP project · K8s ctx · LLM toggle) ┐  │
+│  │                                                                  │  │
+│  │ Conversation stream (cards: Plan · Approval · Result · Error)    │  │
+│  │                                                                  │  │
+│  │                                                                  │  │
+│  └ Command Bar (sticky bottom, CodeMirror 6) ─────────────────────┘  │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │ REST + WebSocket
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                          FastAPI Backend                              │
+│  /parse → Parser + Skill Registry (loaded from skills/)              │
+│  /execute → Runtime (bash) ──► audit.jsonl                           │
+│  /approve → HITL (pending plan table)                                │
+│  /explain → Gemini 2.5 Flash (read-only summary)                     │
+│  /context → AWS profile / GCP / K8s context listing                  │
+└────────────┬──────────────────────────┬──────────────────────────────┘
+             │                          │
+             ▼                          ▼
+     ┌───────────────┐         ┌────────────────────┐
+     │  Skill files  │         │   local shells     │
+     │  skills/…     │         │   aws / gcloud /   │
+     │  (yaml+bash)  │         │   kubectl / bash   │
+     └───────────────┘         └────────────────────┘
 ```
 
-## 2. 模块职责
+## 2. 模块
 
-### 2.1 Web UI（apps/web）
-Next.js 15 App Router + TypeScript。只做展示与编排，不含业务逻辑。
-- **Command Bar**：CodeMirror 6 编辑器，命令语法高亮 + 补全 + 错误标注。
-- **Explain Pane**：右侧栏，AI 解释当前命令语义、将要发生的副作用；**只读、不执行**。
-- **Approval Inbox**：HITL 队列，查看 Plan、批/驳、评论。
-- **Output Panel**：按 Skill 的 output schema 渲染（table/object/log/report）。
-- **Skill Browser**：浏览 Skill 目录、manifest、历史。
-- **Audit Viewer**：按 user / command / resource / time 查询。
+### 2.1 Web UI（`apps/web`）
+一个 Next.js 页面。无路由。组件只剩：
+- `ContextBar` — 顶部
+- `Conversation` — 中间卡流
+- `CommandBar` — 底部 CodeMirror 编辑器（保留 M1 的 token 着色与 parse 反馈）
+- 卡片组件：`PlanCard` / `ApprovalCard` / `RunCard`（流式） / `ResultCard`（表格 / JSON / chart）/ `ErrorCard`
 
-### 2.2 API Gateway（apps/api · FastAPI）
-- **身份**：demo 从 `X-Slash-User` header 读（由本地代理注入），prod 接 OIDC。
-- **接口**（REST + WS）：
-  - `POST /parse` { text } → { ast | parseError, skill, needsApproval }
-  - `POST /plan` { ast } → { planId, effects[], warnings[] }
-  - `POST /execute` { planId, approvedBy? } → { runId }（WS 推流）
-  - `WS /runs/{runId}` → { event } 流
-  - `GET /completions?cursor=...&text=...` → { items[] }
-  - `GET /skills` / `GET /skills/{id}`
-  - `GET /audit` / `GET /audit/{id}`
-  - `GET /approvals` / `POST /approvals/{planId}/decision`
+**删除**：Sidebar、Home 独立页面、Runs 列表页、Approvals Inbox 页、Skills Browser、Audit Viewer、Explain Pane（合并到 ResultCard 内）。
 
-### 2.3 Parser & Validator
-- 手写 LL(1) 解析器（避免引入 PEG 依赖的魔法），输出 `CommandAST`。
-- 类型绑定基于目标 Skill 的 `args` schema。
-- Golden test：每条原子命令至少 1 合法 + 2 非法样本。
+### 2.2 API（`apps/api`）
+FastAPI，接口极简：
 
-### 2.4 Skill Registry & Loader
-- 启动时递归扫描 `skills/`，加载 `skill.yaml` manifest。
-- Watch 文件变动，hot-reload（保持执行中的 run 不中断）。
-- 按 `namespace / noun / verb` 索引；同 key 不允许重复，冲突报错并拒绝启动。
-- 验证 manifest schema、签名（v1 阶段）、capability 合法性。
+| 方法 路径 | 作用 |
+| --- | --- |
+| `POST /parse` | 文本 → AST / ParseError |
+| `POST /execute` | AST + profile 覆盖 → 创建 Run，返回 `run_id`（读类立即执行，写类进入 `awaiting_approval`） |
+| `GET /approvals` | 待审批 plan 列表 |
+| `POST /approvals/{run_id}/decide` | `approve` / `reject` + 评论 |
+| `GET /runs/{run_id}` （WS） | 流式推送 Run 生命周期事件（stdout / stderr / status） |
+| `GET /context` | 读本机 `~/.aws/credentials` profiles、`gcloud config configurations list`、`kubectl config get-contexts` |
+| `POST /explain` | 接收 Run 结果，返回 LLM 摘要（仅 read 类） |
+| `GET /audit?…` | 过滤 `audit.jsonl`（给 `/ops audit logs` 用） |
 
-### 2.5 Executor & HITL Engine
-- 每次执行分阶段：`parse → plan → (approve?) → preflight → execute → record`。
-- Plan 阶段调用 Skill 的 `plan()` 入口，不改变外部状态；收集 `effects`（结构化描述 "会发生什么"）。
-- HITL 判定：
-  - 纯 read → 无须审批。
-  - write → 需要审批（`--yes` 在 CLI/API 模式下允许，UI 强制审批）。
-  - 高危（标记 `danger: true` 的 Skill，如 `vm backup restore`, `db backup restore`, `cluster exec`, `oss object delete`）→ **双人审批**。
-- 沙箱：每个 Skill 在独立 Python 子进程中执行，通过受限的 Provider SDK 与外部通信；禁止 `subprocess`, `socket` 外部库直连。
+### 2.3 Skill Registry
+启动时扫 `skills/` 目录加载 YAML（见 [04](./04-skills.md)）。本地改 YAML 即生效（重启 API 或文件变更触发 reload）。
 
-### 2.6 Audit & Git Recorder
-- 所有事件（parse/plan/approve/execute/result）写 SQLite `audit_events`（append-only）。
-- 每次 write 类 run 完成后，生成 Markdown 摘要并 commit 到 `audit-journal/` Git 仓库（可推远端）。
-- Skill 的每次变更也走 Git（Skill 仓库本身）；`run` 记录会附带 `skill_commit_sha`。
+### 2.4 Runtime（bash 执行器）
+关键数据流：
 
-### 2.7 Provider 层
-- 每个 Provider 是独立包：`providers/aws`, `providers/gcp`, `providers/k8s`。
-- **Capability Matrix**：在 `providers/_capabilities.yaml` 声明每个 Provider 支持的 `(noun, verb)`；不支持则由 Executor 在 preflight 阶段返回 `UnsupportedOperation`。
-- Provider 封装凭据获取：从标准位置读（`~/.aws/credentials`, `~/.config/gcloud`, `~/.kube/config`），**不自建凭据存储**。
+1. `AST + skill` → `BashBuilder` 渲染出**参数化的 argv 数组**（不是 shell 字符串拼接）。
+2. 建立子进程，注入 profile 环境：
+   - AWS：`AWS_PROFILE=<name>`，`AWS_REGION=<region>`（如命令带）
+   - GCP：`CLOUDSDK_ACTIVE_CONFIG_NAME=<name>`
+   - K8s：`KUBECONFIG=<path>`（多文件合并时） + `--context` 显式传入
+3. 子进程用 `subprocess.run([...], env=…, timeout=…, capture_output=True)`，**参数以 list 传给 `argv`，不走 shell**。
+4. stdout / stderr 流回 WebSocket。
+5. 进程退出 → 解析 `output.parse`（`json` / `text` / `lines`）→ Result 卡。
+6. 追加一条 audit 记录（见 [05](./05-safety-audit.md)）。
 
-## 3. 技术选型
+**关键：没有 shell 字符串拼接，只有 argv 数组传入 subprocess，避免命令注入。**
 
-| 层 | 选型 | 理由 | 备选 |
-| --- | --- | --- | --- |
-| 前端框架 | Next.js 15 (App Router) | SSR/RSC 成熟、生态 | Remix |
-| UI 库 | shadcn/ui + Tailwind | 高定制、无运行时锁定 | Radix 原生 |
-| 编辑器 | CodeMirror 6 | 语法高亮 + 补全 API 清晰 | Monaco |
-| 日志流 | xterm.js | 终端语义、ANSI 支持 | 自研 |
-| 后端语言 | Python 3.12 + FastAPI | 云/K8s/AI SDK 最全 | Go + Echo |
-| 任务执行 | asyncio + 子进程沙箱 | 对 IO 密集命令友好 | Celery（过重） |
-| 数据库 | SQLite（v0）→ Postgres（v1） | demo 零依赖 | DuckDB |
-| 包管理 | pnpm（web）、uv（api） | 快、确定性 | npm / poetry |
-| Skill 存储 | Git | 天然版本/审计 | 对象存储 |
-| 通信 | REST + WebSocket | 流式输出必需 | SSE |
-| 进程管理 | `slash` CLI 启前后端 | 单命令即 demo | docker-compose |
+### 2.5 LLM 集成（Gemini 2.5 Flash）
+唯一调用入口：`POST /explain`。
 
-## 4. Provider 抽象
+- 请求：Run 的结构化输出（JSON）+ 用户的命令 AST + "summary" 或 "diagnose" 目标。
+- System prompt 固定：见 [05 §3](./05-safety-audit.md)。
+- **LLM 不能返回可执行命令**，只能返回 markdown 摘要 + 结构化 findings。
+- 任何返回都被标注 `LLM·generated`，在 UI 卡上以不同底色呈现。
 
-```python
-# providers/base.py
-class Provider(Protocol):
-    name: str                      # "aws" | "gcp" | "k8s"
-    def capabilities(self) -> set[tuple[str, str]]: ...  # {(noun, verb), ...}
-    def check_credentials(self) -> CredCheckResult: ...
-    # Skill 通过 provider client 访问资源，不得直调 SDK
+调用失败 → Result 卡正常显示原始结果，LLM 摘要位置显示 `[LLM unavailable, raw result above]`。
+
+### 2.6 HITL Engine
+内存表 `pending_plans: dict[run_id, PendingPlan]`。
+
+流程：
+1. `/execute` 若 skill `mode == "write"` → 生成 plan（调用 bash `dry-run` 或从 skill 的 plan 模板渲染 diff）→ 入 pending 表 → 返回 `run_id` & `awaiting_approval`。
+2. Approval 卡出现在对话流中（WS 推送）。
+3. `/approvals/{id}/decide approve` → 正式执行；`reject` → 标记 rejected，不执行。
+4. 一个 plan 只能被决策一次。
+
+### 2.7 审计
+单文件 `var/audit.jsonl`。每行 JSON：
+```json
+{"ts":"2026-04-22T10:15:31Z","user":"local","run_id":"r_01","command":"/infra aws vm list --region us-east-1","skill_id":"infra.aws.vm.list","mode":"read","state":"ok","stdout_sha256":"…","summary":"found 7 instances"}
 ```
+字段在 [05 §4](./05-safety-audit.md) 规范。
 
-**Capability Matrix 示例：**
-```yaml
-# providers/_capabilities.yaml
-aws:
-  - [vm, list]
-  - [vm, get]
-  - [vm, start]
-  - [vm, stop]
-  # vm.resize yes, oss.object.* yes ...
-gcp:
-  - [vm, list]
-  - [vm, get]
-  - [vm, start]
-  - [vm, stop]
-  # dns.record.resolve unsupported here because gcp equivalent requires different auth
-k8s:
-  - [pod, get]
-  - [pod, logs]
-  - [deploy, scale]
-```
+## 3. 技术栈
 
-**跨 Provider 语义约束**：同一 `(noun, verb)` 在不同 Provider 下输出字段须一致（由 Skill output schema 保证），不一致时应新开 verb 而不是偷偷塞字段。
+| 层 | 选型 | 备注 |
+| --- | --- | --- |
+| 前端 | Next.js 15 · TypeScript · Tailwind · CodeMirror 6 · lucide-react | 删除 shadcn 复杂 primitives；单页面 |
+| 后端 | Python 3.12 · FastAPI · uvicorn | 保留 |
+| LLM | Google Gemini 2.5 Flash via `google-generativeai` SDK | 通过 `GEMINI_API_KEY` env |
+| 执行 | `subprocess.run(argv, …)` | 绝不 `shell=True` |
+| 审计 | JSONL append | `var/audit.jsonl` |
+| 存储 | 内存 + JSONL | 无数据库 |
+| 字体 | Geist Sans + Geist Mono | 保留 |
 
-## 5. 数据模型（核心表）
-
-SQLite 表（后续可换 Postgres）：
-
-```sql
-CREATE TABLE skills (
-  id TEXT PRIMARY KEY,          -- "infra.aws.vm.list"
-  namespace TEXT, noun TEXT, verb TEXT,
-  provider TEXT,                 -- null 表示跨 provider
-  manifest_json TEXT NOT NULL,
-  version TEXT NOT NULL,
-  git_commit TEXT NOT NULL,
-  danger INTEGER NOT NULL DEFAULT 0,
-  loaded_at TIMESTAMP NOT NULL
-);
-
-CREATE TABLE runs (
-  id TEXT PRIMARY KEY,
-  user TEXT NOT NULL,
-  command_text TEXT NOT NULL,
-  ast_json TEXT NOT NULL,
-  skill_id TEXT NOT NULL,
-  skill_commit TEXT NOT NULL,
-  state TEXT NOT NULL,           -- parsed|planned|awaiting_approval|approved|running|done|failed|rejected
-  reason TEXT,
-  trace_id TEXT NOT NULL,
-  started_at TIMESTAMP,
-  ended_at TIMESTAMP
-);
-
-CREATE TABLE plans (
-  id TEXT PRIMARY KEY,
-  run_id TEXT NOT NULL,
-  effects_json TEXT NOT NULL,    -- [{target, before, after, kind}]
-  warnings_json TEXT,
-  created_at TIMESTAMP
-);
-
-CREATE TABLE approvals (
-  id TEXT PRIMARY KEY,
-  plan_id TEXT NOT NULL,
-  decided_by TEXT,
-  decision TEXT,                 -- approved|rejected
-  comment TEXT,
-  decided_at TIMESTAMP
-);
-
-CREATE TABLE audit_events (
-  id TEXT PRIMARY KEY,
-  run_id TEXT,
-  kind TEXT NOT NULL,            -- parse|plan|approve|execute|result
-  payload_json TEXT NOT NULL,
-  created_at TIMESTAMP NOT NULL
-);
-
-CREATE INDEX idx_runs_user_time ON runs(user, started_at);
-CREATE INDEX idx_audit_run ON audit_events(run_id);
-```
-
-## 6. 关键流程
-
-### 6.1 Read 命令：`/infra aws vm list --region us-east-1`
-
-```
-UI Command Bar
-  → POST /parse
-      → Parser → AST
-      → Skill registry resolve "infra.aws.vm.list"
-  → POST /plan  (skill.plan())
-      → 返回 effects = []（read 类）
-  → POST /execute   （HITL 跳过）
-      → Executor 启沙箱子进程运行 skill.run()
-      → Provider `aws` 调 boto3 describe_instances
-      → 流式返回行，UI 按 table schema 渲染
-  → 写 audit_events: parse, plan, execute, result
-```
-
-### 6.2 Write 命令：`/cluster prod scale web --replicas 10 --ns api --reason "..."`
-
-```
-Parse → Plan
-  plan() 返回 effects = [{
-    target: "deploy/web@prod/api",
-    before: {replicas: 4},
-    after:  {replicas: 10},
-    kind:   "scale"
-  }]
-→ 提交审批（除非 --yes 且用户有 policy.auto_approve）
-  UI 推送到 Approval Inbox，审批人看到 diff
-→ 审批通过 → preflight（权限、依赖）→ execute
-→ commit Markdown 摘要到 audit-journal repo
-```
-
-### 6.3 双人审批：`/infra aws vm backup restore <id> --backup <b>`
-
-Skill 声明 `danger: true, approvers: 2`。Planner 生成 plan 后，UI 要求两个不同用户先后批准，第二人签字后才进入执行。
-
-## 7. 仓库结构
+## 4. 仓库结构（大幅精简）
 
 ```
 slash/
 ├─ apps/
-│  ├─ web/                 # Next.js UI
-│  │  ├─ app/
+│  ├─ web/
+│  │  ├─ app/page.tsx              # 唯一页面
 │  │  ├─ components/
-│  │  └─ lib/
-│  └─ api/                 # FastAPI
+│  │  │  ├─ ContextBar.tsx
+│  │  │  ├─ Conversation.tsx
+│  │  │  ├─ CommandBar.tsx         # CodeMirror 6（保留）
+│  │  │  ├─ cards/
+│  │  │  │  ├─ PlanCard.tsx
+│  │  │  │  ├─ ApprovalCard.tsx
+│  │  │  │  ├─ RunCard.tsx         # 流式 stdout/stderr
+│  │  │  │  ├─ ResultCard.tsx      # table/json/chart + optional LLM summary
+│  │  │  │  └─ ErrorCard.tsx
+│  │  │  └─ editor/                # 保留 M1 tokens + theme
+│  │  └─ lib/cn.ts
+│  └─ api/
 │     ├─ slash_api/
 │     │  ├─ main.py
-│     │  ├─ routers/
-│     │  ├─ parser/
-│     │  ├─ executor/
-│     │  ├─ registry/
-│     │  ├─ audit/
-│     │  └─ schemas/
+│     │  ├─ routers/               # parse / execute / approvals / context / explain / runs / audit
+│     │  ├─ parser/                # 保留
+│     │  ├─ registry/              # 保留
+│     │  ├─ runtime/               # ★ 新：bash 执行器
+│     │  ├─ llm/                   # ★ 新：Gemini 客户端 + system prompt
+│     │  ├─ hitl/                  # ★ 新：pending_plans 管理
+│     │  └─ audit/                 # ★ 新：jsonl 追加器
 │     └─ tests/
-├─ packages/
-│  ├─ shared-types/        # TypeScript 类型（从 OpenAPI 生成）
-│  └─ skill-sdk/           # Python SDK for skill authors
-├─ providers/
-│  ├─ _capabilities.yaml
-│  ├─ aws/
-│  ├─ gcp/
-│  └─ k8s/
-├─ skills/                 # Skill 仓库（独立 Git 也可）
-│  └─ infra/aws/vm/
-│     ├─ list/
-│     │  ├─ skill.yaml
-│     │  └─ run.py
-│     └─ ...
-├─ audit-journal/          # 审计 Git 仓库（可 submodule）
-├─ docs/                   # 本文件所在
-└─ scripts/
-   └─ slash-up             # 一键起 demo
+├─ skills/
+│  ├─ infra/aws/vm/{list,get}/     # yaml + bash + tests
+│  ├─ infra/gcp/vm/list/
+│  ├─ cluster/_any/{list,get,logs,scale,rollout-restart}/
+│  └─ ops/{audit,diagnose}/
+├─ scripts/
+│  └─ slash-up
+├─ var/
+│  └─ audit.jsonl                  # 运行时追加
+└─ docs/                           # 6 份：README + 01..06
 ```
 
-## 8. 非功能性需求（NFR）
+**去掉**：`audit-journal/`（Git 仓库，太重）、`providers/`（冗余，已合并到 skill 的 bash 模板里）、`packages/`（空，先不做）。
 
-| 维度 | 指标（v0 / Demo） |
-| --- | --- |
-| 启动时间 | `slash up` 到 UI 可用 ≤ 5s |
-| 命令解析 P95 | ≤ 10ms |
-| 补全响应 P95 | ≤ 50ms（本地），≤ 200ms（涉及 Provider 远程查询） |
-| 日志流延迟 | ≤ 300ms（从远端到 UI） |
-| 并发 run | ≥ 20（demo 机器） |
-| 崩溃恢复 | 执行中的 run 进程崩溃 → 标 `failed`，不污染审计链 |
+## 5. 关键流程
 
-## 9. 可观测性
+### 5.1 Read 命令
+```
+User types /infra aws vm list --region us-east-1 [Enter]
+→ /parse                                 (client-side token coloring + server validation)
+→ /execute                               (runtime spawns `aws ec2 describe-instances ...`)
+→ WS stream                              (progress dots in RunCard)
+→ Runtime parses stdout as JSON          (ResultCard with a table)
+→ If Context Bar LLM toggle = ON:
+    → /explain                           (Gemini 2.5 Flash summary)
+    → ResultCard shows summary below table, badge "LLM·generated"
+→ audit.jsonl append
+```
 
-- **Self-tracing**：每个请求带 `trace_id`，审计事件相互关联。
-- **结构化日志**：JSON lines，`logger = get_logger("slash.<module>")`。
-- **内部指标**：Prometheus `/metrics` 暴露 parse/plan/execute 的 latency 与 error rate（demo 可关闭）。
-- **面板**：UI 自带 `/ops slo status slash` 展示自身 SLO。
+### 5.2 Write 命令
+```
+User types /cluster prod scale web --replicas 10 --ns api --reason "launch" [Enter]
+→ /parse ok, mode=write
+→ /execute                               (builds plan; does NOT run kubectl)
+   returns run_id, state=awaiting_approval
+→ ApprovalCard appears in stream
+   - shows before/after diff (replicas 4 → 10)
+   - [Approve] [Reject (reason required)]
+→ User clicks Approve
+→ /approvals/{id}/decide approve
+→ Runtime spawns kubectl scale
+→ WS stream → ResultCard
+→ audit.jsonl append (with approver, approval_ts)
+```
 
-## 10. 依赖与外部接口
+### 5.3 Danger 命令
+Skill 声明 `danger: true` → ApprovalCard 顶部红色横条 + 二次确认（打字输入 YES 才能点 Approve）。
 
-| 依赖 | 用途 | 失败处理 |
+## 6. 配置
+
+环境变量（启动时读）：
+
+| Var | 默认 | 作用 |
 | --- | --- | --- |
-| AWS API (boto3) | `/infra aws *` | `UnsupportedOperation` / 透传原错误 |
-| GCP API | `/infra gcp *` | 同上 |
-| Kubernetes API | `/cluster *` | context 不可用 → 明确拒绝 |
-| 本地 Git | Skill 仓库 / 审计仓库 | 缺失 → 启动失败 |
-| 浏览器 | UI 承载 | 无可用浏览器 → CLI fallback（v1） |
+| `GEMINI_API_KEY` | — | 不设即禁用 LLM 摘要 |
+| `SLASH_AUDIT_PATH` | `var/audit.jsonl` | 审计文件路径 |
+| `SLASH_SKILLS_DIR` | `skills/` | Skill 目录 |
+| `SLASH_DEFAULT_AWS_PROFILE` | `default` | Context Bar 启动默认 |
+| `SLASH_DEFAULT_KUBE_CONTEXT` | — | 留空则读 `kubectl config current-context` |
+| `SLASH_LLM_DEFAULT` | `off` | LLM 摘要默认开关 |
 
-## 11. 构建与发布
-
-- `pnpm build`（web）+ `uv build`（api）→ 单容器镜像（v1）。
-- Demo：`./scripts/slash-up` 同时启动 web 与 api，浏览器自动打开 `http://localhost:4455`。
-- 所有组件版本在 `VERSION` 文件，审计记录中带版本号。
+配置文件：`~/.config/slash/config.toml`（若存在覆盖 env）。

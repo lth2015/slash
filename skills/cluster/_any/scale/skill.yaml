@@ -1,0 +1,55 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.scale
+  name: "Scale a Deployment"
+  version: 0.1.0
+  labels: { stability: beta, risk: medium }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [], verb: scale }
+  mode: write
+  danger: false
+  approvers: 1
+  timeout: 60s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: deploy,   type: string, positional: true, required: true }
+    - { name: replicas, flag: --replicas, type: int, required: true, min: 0, max: 1000 }
+    - { name: ns,       flag: --ns,       type: string, required: true }
+    - { name: reason,   flag: --reason,   type: string, required: true }
+
+  plan:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - deployment
+      - "${deploy}"
+      - -o
+      - jsonpath={.spec.replicas}
+    diff:
+      before_source: stdout
+      after_value: "${replicas}"
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - scale
+      - "deployment/${deploy}"
+      - "--replicas=${replicas}"
+
+  rollback: |
+    /cluster ${profile.k8s.context} scale ${deploy} --replicas ${before} --ns ${ns} --reason "rollback"
+
+  output:
+    parse: text
+    kind: object

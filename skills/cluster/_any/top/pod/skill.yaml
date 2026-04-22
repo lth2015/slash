@@ -1,0 +1,36 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.top.pod
+  name: "Pod resource usage"
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [top], verb: pod }
+  mode: read
+  timeout: 15s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: ns, flag: --ns, type: string }
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - top
+      - pod
+      - --no-headers
+    expand:
+      - when: ns
+        as: ["-n", "${value}"]
+
+  output:
+    parse: lines
+    kind: table
+    columns:
+      - { key: "0", label: "Pod" }
+      - { key: "1", label: "CPU" }
+      - { key: "2", label: "Memory" }

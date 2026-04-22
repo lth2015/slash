@@ -1,40 +1,34 @@
-# Slash 文档索引
+# Slash 文档
 
-> Slash 是面向 SRE 的**统一命令面板**（Command Palette for SRE）。以命令式、原子化的接口封装多云与 Kubernetes 操作，配合 Git 化、可审计、可回滚的 **Skill 生命周期**，同时提供顶级商业产品级别的 UI/UX。
+> **Slash 是一个 SRE 驾驶舱。** 一个窗口、一条命令行、人审批、bash 执行、LLM 辅助解释。不做仪表盘、不做多页面工作区、不做商业化。
 
-本目录是文档先行（doc-first）的产物。**在任何代码动工之前**，请先通读全部文档、完成自省与评审。
+## 核心原则（不可违反）
+
+1. **一个窗口**。对话流 + 固定底部 Command Bar。没有侧栏导航菜单。没有 Runs / Approvals / Skills / Audit 独立页面。
+2. **输入是严格命令**。形如 `/infra aws vm list --region us-east-1`，EBNF 可解析，禁止自然语言作为执行入口。
+3. **执行走 bash**。每个 Skill = YAML manifest + 一段 bash 模板。执行器按 profile 注入环境变量（`AWS_PROFILE`、`gcloud config configurations`、`KUBECONFIG`），凭据假设已在本机配置好。
+4. **写操作必须人类审批**。审批卡就地出现在对话流里，不跳页、不弹 Modal。LLM 不能批准任何写操作。
+5. **LLM = Gemini 2.5 Flash**，只做三件事：read 结果摘要、错误解释、诊断类 skill 的分析报告。**永远不能执行命令、修改 plan、跳过审批**。输出永远带 `LLM·generated` 标签。
+6. **审计 = 一个 jsonl 文件**。追加写，谁 / 时间 / 命令 / 状态 / 结果摘要。不做 Git、不做 hash chain、不做 Postgres。
 
 ## 阅读顺序
 
-| 序号 | 文档 | 读者 | 作用 |
-| --- | --- | --- | --- |
-| 01 | [产品规格（PRD）](./01-product-spec.md) | PM / SRE Lead | 为什么做、做给谁、做到什么程度 |
-| 02 | [命令参考（Command Reference）](./02-command-reference.md) | 所有人 | Slash 语言规范（EBNF、原子命令、参数、退出码） |
-| 03 | [架构（Architecture）](./03-architecture.md) | 架构 / 工程 | 模块、数据流、依赖、技术选型 |
-| 04 | [Skills 体系（Skills System）](./04-skills-system.md) | Skill 作者 / 审阅者 | Skill 文件格式、生命周期、GitOps、沙箱 |
-| 05 | [安全与审计（Security & Audit）](./05-security-audit.md) | SecOps / 合规 | 输入净化、HITL、审计链路、威胁模型 |
-| 06 | [UI/UX 设计（UI/UX Design）](./06-ui-ux-design.md) | 设计 / 前端 | 信息架构、视觉系统、关键页面规格 |
-| 07 | [路线图（Roadmap）](./07-roadmap.md) | 全员 | Demo → v1 分阶段交付计划 |
+| # | 文件 | 作用 |
+| --- | --- | --- |
+| 01 | [spec.md](./01-spec.md) | 范围、用户、不做什么 |
+| 02 | [commands.md](./02-commands.md) | 命令语法与原子命令集 |
+| 03 | [architecture.md](./03-architecture.md) | 单窗口 UI + bash 运行时 + LLM 辅助的接线 |
+| 04 | [skills.md](./04-skills.md) | Skill 文件格式、profile 注入、harness engineering 测试 |
+| 05 | [safety-audit.md](./05-safety-audit.md) | HITL、LLM 防欺骗、jsonl 审计 |
+| 06 | [ui.md](./06-ui.md) | 驾驶舱 UI 规格（Polite、商业化克制、潮流但不炫） |
 
-## 核心决策（本文档集已冻结的前置约定）
-
-以下决策已经在对应文档中落地，作为后续编码的**唯一事实源**：
-
-1. **输入模型**：严格命令语法，**不接受自然语言**。输入通过形式语法解析；解析失败即拒绝。见 [02 §2](./02-command-reference.md)。
-2. **执行模型**：所有副作用走"计划 → 审批 → 执行 → 记录"四段式，HITL 不可跳过（除 `--dry-run` 与显式白名单的只读命令）。见 [05 §4](./05-security-audit.md)。
-3. **扩展单位**：Skill。目录结构即命令树，一条原子命令对应一个 Skill。Skill 仓库用 Git 管理，变更走 PR。见 [04](./04-skills-system.md)。
-4. **多云抽象**：`/infra` 屏蔽 AWS / GCP 差异。Provider 为可插拔适配器，Skill 通过 Provider SDK 访问资源，不直接调云 API。见 [03 §4](./03-architecture.md)。
-5. **技术栈**：前端 Next.js 15（App Router）+ TypeScript + Tailwind + shadcn/ui + CodeMirror 6；后端 FastAPI（Python）；SQLite（demo）。见 [03 §3](./03-architecture.md)。
-6. **不做**（Demo 阶段）：SSO、多租户、多区域部署、Secret 托管。Demo 使用本地单用户，身份来自 OS。见 [01 §6](./01-product-spec.md)。
-
-## 术语表
+## 术语
 
 | 术语 | 含义 |
 | --- | --- |
-| Slash | 本工具 |
-| Skill | 一条原子命令的可执行定义（manifest + 代码） |
-| Provider | 云厂商 / K8s / 监控系统的适配器 |
-| HITL | Human-in-the-Loop，必要变更须人工审批 |
-| Plan | 命令的执行预览（不产生副作用） |
-| Effect | 命令执行后对外部系统的副作用 |
-| Audit Record | 追加写的操作留痕 |
+| **Skill** | 一条原子命令的 YAML+bash 定义 |
+| **Profile** | 已在本机配置好的 AWS / GCP / K8s 身份（`~/.aws/credentials`, `~/.config/gcloud`, `~/.kube/config`） |
+| **Conversation** | 主窗口里的对话流，由若干 Turn 组成 |
+| **Turn** | 一次"用户命令 → 计划 → （审批） → 执行 → 结果"的闭环 |
+| **HITL** | Human-in-the-Loop，写/改命令必经人审批 |
+| **LLM·generated** | 凡是 LLM 生成的内容必须打此标签，不可作为执行触发器 |

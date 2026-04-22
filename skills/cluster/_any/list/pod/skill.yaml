@@ -1,0 +1,43 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.list.pod
+  name: "List pods in a namespace"
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [list], verb: pod }
+  mode: read
+  timeout: 20s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: ns,       flag: --ns, type: string, required: true }
+    - { name: selector, flag: --selector, type: string }
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - pods
+      - -o
+      - json
+    expand:
+      - when: selector
+        as: ["-l", "${value}"]
+
+  output:
+    parse: json
+    path: "items[]"
+    kind: table
+    columns:
+      - { key: metadata.name,           label: "Pod" }
+      - { key: status.phase,            label: "Phase", renderer: state-badge }
+      - { key: spec.nodeName,           label: "Node" }
+      - { key: status.podIP,            label: "IP" }
+      - { key: metadata.creationTimestamp, label: "Created", renderer: relative-time }

@@ -1,0 +1,34 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.vm.get
+  name: "Get AWS EC2 instance detail"
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [vm], verb: get }
+  mode: read
+  timeout: 20s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: id,     type: string, positional: true, required: true }
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+
+  bash:
+    argv:
+      - aws
+      - ec2
+      - describe-instances
+      - --instance-ids
+      - "${id}"
+      - --region
+      - "${region}"
+      - --output
+      - json
+
+  output:
+    parse: json
+    path: "Reservations[].Instances[]"
+    kind: object

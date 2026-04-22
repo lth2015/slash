@@ -1,0 +1,34 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.get.deploy
+  name: "Get Deployment detail"
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [get], verb: deploy }
+  mode: read
+  timeout: 15s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: name, type: string, positional: true, required: true }
+    - { name: ns,   flag: --ns,   type: string, required: true }
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - deployment
+      - "${name}"
+      - -o
+      - json
+
+  output:
+    parse: json
+    kind: object

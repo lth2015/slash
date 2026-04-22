@@ -2,8 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Control Ledger — dark (default) */
 :root {
   color-scheme: dark;
+  --canvas:        #0B0E13;
+  --surface:       #10141B;
+  --elevated:      #161B25;
+  --border-subtle: #1D232D;
+  --border:        #2A313E;
+  --text-primary:  #E6EAF1;
+  --text-secondary:#A1A9B8;
+  --text-muted:    #6B7383;
+  --ok:            #4CB27E;
+  --write:         #DD8A3E;
+  --danger:        #E54B57;
+  --warn:          #E8C44D;
+  --pending:       #6F8CB5;
+  --llm:           #C8A46B;
+  --focus:         #5EA0FF;
+}
+
+html.light {
+  color-scheme: light;
+  --canvas:        #F7F8FA;
+  --surface:       #FFFFFF;
+  --elevated:      #F1F3F7;
+  --border-subtle: #E6E8EE;
+  --border:        #D0D4DC;
+  --text-primary:  #0B0E13;
+  --text-secondary:#4B5462;
+  --text-muted:    #8A92A0;
+  --ok:            #137A45;
+  --write:         #B5661F;
+  --danger:        #C02632;
+  --warn:          #A07A12;
+  --pending:       #3B5B84;
+  --llm:           #8A6A30;
+  --focus:         #1D6FE0;
 }
 
 html,
@@ -13,15 +48,53 @@ body {
 
 body {
   @apply bg-canvas text-text-primary font-sans antialiased;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 *:focus-visible {
-  outline: 2px solid theme("colors.accent.primary");
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
 ::selection {
-  background-color: rgba(110, 168, 254, 0.25);
+  background-color: color-mix(in oklab, var(--focus) 25%, transparent);
+}
+
+.cm-editor,
+.cm-editor.cm-focused { outline: none !important; }
+
+/* CodeMirror token classes — see components/editor/theme.ts */
+.tok-slash     { color: var(--text-muted); }
+.tok-namespace { color: color-mix(in oklab, var(--focus) 95%, transparent); }
+.tok-target    { color: var(--text-secondary); }
+.tok-noun      { color: var(--text-primary); }
+.tok-verb      { color: var(--text-primary); }
+.tok-verb-write  { color: var(--write); }
+.tok-verb-danger { color: var(--danger); }
+.tok-flag      { color: var(--text-muted); }
+.tok-value     { color: var(--text-primary); font-weight: 500; }
+.tok-duration  { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.tok-string    { color: var(--text-primary); }
+.tok-ref       { color: var(--text-primary); text-decoration: underline dotted var(--border); text-underline-offset: 4px; }
+.tok-unknown   { color: var(--danger); }
+
+/* Wavy error underline (same asset as before, color bound to token) */
+.tok-error {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='3' viewBox='0 0 6 3'><path d='M0 2 Q 1.5 0 3 2 Q 4.5 0 6 2' fill='none' stroke='%23E54B57' stroke-opacity='0.85' stroke-width='1'/></svg>");
+  background-repeat: repeat-x;
+  background-position: 0 100%;
+  background-size: 6px 3px;
+  padding-bottom: 2px;
+  animation: underline-in 200ms cubic-bezier(0.1, 0.6, 0.3, 1) both;
+}
+
+/* Tables: tabular numerics everywhere numbers appear */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

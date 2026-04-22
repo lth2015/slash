@@ -1,0 +1,37 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.rollout.restart
+  name: "Restart a Deployment"
+  version: 0.1.0
+  labels: { stability: beta, risk: medium }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [rollout], verb: restart }
+  mode: write
+  danger: false
+  approvers: 1
+  timeout: 60s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: deploy, type: string, positional: true, required: true }
+    - { name: ns,     flag: --ns, type: string, required: true }
+    - { name: reason, flag: --reason, type: string, required: true }
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - rollout
+      - restart
+      - "deployment/${deploy}"
+
+  rollback: "Restart cannot be directly undone; watch pods return to Ready."
+
+  output:
+    parse: text
+    kind: object
