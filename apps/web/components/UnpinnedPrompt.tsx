@@ -43,60 +43,60 @@ export function UnpinnedPrompt({
     <div className="relative z-10 flex justify-center pt-6 pb-0 pointer-events-none">
       <div
         className={cn(
-          "pointer-events-auto w-[min(720px,92%)]",
-          "bg-warn-soft border border-warn/55 rounded-2xl",
+          "pointer-events-auto w-[min(760px,94%)]",
+          // Amber card bumped up in saturation so text sits on a clearly
+          // non-transparent field — readable first, atmospheric second.
+          "bg-[oklch(91%_0.12_80)] border-2 border-[oklch(72%_0.14_75)] rounded-2xl",
           "shadow-lg",
           "animate-pop-in",
         )}
       >
-        <div className="flex items-start gap-5 p-5">
+        <div className="flex items-start gap-5 p-6">
           <div
             className={cn(
-              "shrink-0 w-11 h-11 rounded-xl flex items-center justify-center",
-              "bg-warn/20 border border-warn/40",
+              "shrink-0 w-14 h-14 rounded-xl flex items-center justify-center",
+              "bg-[oklch(82%_0.15_75)] border-2 border-[oklch(65%_0.16_70)]",
             )}
             aria-hidden
           >
-            <PinOff size={20} className="text-warn" />
+            <PinOff size={24} strokeWidth={2.2} className="text-[oklch(30%_0.12_70)]" />
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-baseline gap-2">
-              <h3 className="font-display font-bold text-[18px] text-[oklch(26%_0.08_75)] tracking-tight">
-                No contexts pinned.
-              </h3>
-              <span className="font-display text-[14px] text-[oklch(38%_0.08_75)]">
-                Every cluster / cloud command needs a target.
-              </span>
-            </div>
-            <p className="mt-1 text-small text-[oklch(42%_0.06_75)] leading-relaxed">
-              Pin once per session — every command after inherits the pinned
-              context. Use <span className="font-mono text-[oklch(32%_0.10_75)] font-semibold">/ctx list</span> to see what's available on this machine.
+            <h3 className="font-display font-bold text-[22px] text-[oklch(22%_0.08_75)] tracking-tight leading-tight">
+              No contexts pinned.
+            </h3>
+            <p className="mt-1 font-display text-[15px] text-[oklch(32%_0.08_75)]">
+              Every cluster / cloud command needs a target.
             </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2.5">
+            <p className="mt-2.5 text-[15px] text-[oklch(32%_0.06_75)] leading-relaxed">
+              Pin once per session — every command after inherits the pinned
+              context. Use <span className="font-mono text-[oklch(26%_0.10_75)] font-semibold">/ctx list</span> to see what's available on this machine.
+            </p>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={() => onTypeCommand("/ctx list")}
                 className={cn(
-                  "group inline-flex items-center gap-2 h-10 pl-4 pr-5 rounded-full",
-                  "bg-warn text-[oklch(20%_0.05_75)] font-display font-semibold text-[13px]",
-                  "hover:brightness-95 transition-all duration-160 shadow-xs",
+                  "group inline-flex items-center gap-2 h-11 pl-4 pr-5 rounded-full",
+                  "bg-[oklch(58%_0.19_70)] text-white font-display font-semibold text-[15px]",
+                  "hover:brightness-95 transition-all duration-160 shadow-sm",
                 )}
               >
                 <span className="font-mono">/ctx list</span>
-                <ArrowRight size={14} className="transition-transform duration-160 group-hover:translate-x-0.5" />
+                <ArrowRight size={16} className="transition-transform duration-160 group-hover:translate-x-0.5" />
               </button>
               <button
                 type="button"
                 onClick={() => onTypeCommand("/ctx pin k8s ")}
                 className={cn(
-                  "inline-flex items-center gap-2 h-10 px-4 rounded-full",
-                  "bg-white/70 border border-warn/40 text-[oklch(32%_0.10_75)] font-display font-semibold text-[13px]",
-                  "hover:bg-white transition-colors duration-160",
+                  "inline-flex items-center gap-2 h-11 px-4 rounded-full",
+                  "bg-white border-2 border-[oklch(72%_0.14_75)] text-[oklch(26%_0.10_75)] font-display font-semibold text-[15px]",
+                  "hover:bg-[oklch(98%_0.04_75)] transition-colors duration-160",
                 )}
               >
                 <span className="font-mono">/ctx pin k8s</span>
-                <span className="font-mono text-[oklch(60%_0.08_75)]">{"<name>"}</span>
+                <span className="font-mono text-[oklch(55%_0.08_75)]">{"<name>"}</span>
               </button>
             </div>
           </div>
