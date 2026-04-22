@@ -119,6 +119,7 @@ export default function Home() {
       error_code?: string | null;
       error_message?: string | null;
       output_spec?: ResultPayload["output_spec"];
+      rollback_command?: string | null;
     };
     setTurns((list) =>
       list.map((t) => {
@@ -137,6 +138,7 @@ export default function Home() {
               duration_ms: p.duration_ms ?? null,
               output_spec: p.output_spec ?? null,
               ts: new Date().toISOString(),
+              rollback_command: p.rollback_command || null,
             },
           };
         }

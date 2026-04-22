@@ -109,7 +109,22 @@ spec:
       - { key: Placement.AvailabilityZone, label: "AZ" }
       - { key: LaunchTime,  label: "Launched", renderer: relative-time }
 
-  # ---- rollback hint (for write skills; required there; empty for read) ----
+  # ---- rollback (for write skills; optional) ----
+  #
+  # Two forms:
+  #
+  #   1. Prose hint  — any string that does NOT start with "/". Rendered on
+  #      the Plan card as a human-readable note. No one-click rollback.
+  #
+  #   2. Executable slash command — MUST start with "/". Interpolated at
+  #      plan time with the usual ${var} substitutions PLUS ${before} and
+  #      ${after} (from the plan.diff capture). After a successful apply the
+  #      UI shows a "Roll back" button that pre-fills the CommandBar with
+  #      this command. The rollback itself goes through /execute + HITL
+  #      approval like any other write — there is no fire-and-forget revert.
+  #
+  # Example (see skills/cluster/_any/scale/skill.yaml):
+  #   rollback: "/cluster ${profile.k8s.context} scale ${deploy} --replicas ${before} --ns ${ns} --reason rollback"
   rollback: null
 
   # ---- LLM summary template (optional; used when Context Bar LLM is ON) ----

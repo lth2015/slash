@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronsUpDown } from "lucide-react";
+import { ChevronDown, ChevronsUpDown, RotateCcw } from "lucide-react";
 
 import { Card, CardMeta } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
@@ -33,12 +33,28 @@ export interface ResultPayload {
   output_spec?: OutputSpec | null;
   profile?: { kind?: string | null; name?: string | null } | null;
   ts?: string;
+  /** Pre-rendered slash command that inverts this change; present only for
+   *  write skills whose spec.rollback could be fully resolved at plan time. */
+  rollback_command?: string | null;
 }
 
-export function ResultCard({ result }: { result: ResultPayload; attached?: boolean }) {
+export function ResultCard({
+  result,
+  onRollback,
+}: {
+  result: ResultPayload;
+  attached?: boolean;
+  /** Called when the user clicks "Roll back". Receives the pre-rendered slash
+   *  command; consumer should populate the CommandBar with it (not auto-run). */
+  onRollback?: (cmd: string) => void;
+}) {
   const spec = result.output_spec ?? {};
   const kind = spec.kind ?? "object";
   const rowCount = asArray(result.outputs).length;
+  const canRollback =
+    result.mode === "write" &&
+    result.state === "ok" &&
+    !!result.rollback_command;
   return (
     <Card rail={result.state === "ok" ? "ok" : "error"}>
       <CardMeta
@@ -56,6 +72,24 @@ export function ResultCard({ result }: { result: ResultPayload; attached?: boole
         {kind === "object" && <ObjectView value={result.outputs} />}
         {kind === "log" && <LogView text={String(result.outputs ?? "")} />}
         {kind === "chart" && <ObjectView value={result.outputs} />}
+
+        {canRollback && (
+          <div className="px-4 py-3 bg-warn-soft/40 border-t border-border-subtle flex items-start gap-3">
+            <RotateCcw size={14} className="mt-0.5 text-warn shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="kicker text-warn mb-1">executable rollback available</div>
+              <code className="block font-mono text-[12.5px] text-text-secondary truncate">
+                {result.rollback_command}
+              </code>
+            </div>
+            <button
+              onClick={() => onRollback?.(result.rollback_command ?? "")}
+              className="shrink-0 h-8 px-3 rounded-full bg-surface border border-warn/50 text-warn text-caption tracking-chip font-mono hover:bg-warn hover:text-white transition-colors duration-160"
+            >
+              roll back
+            </button>
+          </div>
+        )}
 
         <footer className="h-8 px-4 flex items-center gap-3 text-caption tracking-chip text-text-muted border-t border-border-subtle bg-surface-sub">
           <Chip kind={result.mode === "write" ? "write" : "read"}>{result.mode}</Chip>

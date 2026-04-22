@@ -54,6 +54,11 @@ class DecisionResponse(BaseModel):
     error_code: str | None = None
     error_message: str | None = None
     output_spec: dict | None = None
+    # Present only on state=ok for a write skill that declared an executable
+    # spec.rollback. Client can wire a "Roll back" button that pre-fills the
+    # CommandBar with this string; the rollback still goes through /execute +
+    # HITL approval.
+    rollback_command: str | None = None
 
 
 @router.get("/approvals", response_model=ApprovalList)
@@ -183,6 +188,9 @@ def decide_approval(
         "stdout": result.stdout,
         "stderr": result.stderr,
         "summary": err_msg or "applied",
+        # Store the pre-rendered rollback so /audit queries can surface it
+        # long after the in-memory plan is gone.
+        "rollback_command": plan.rollback_command or "",
     })
 
     remove(run_id)
@@ -200,6 +208,7 @@ def decide_approval(
         error_code=err_code,
         error_message=err_msg,
         output_spec=plan.output_spec,
+        rollback_command=(plan.rollback_command or None) if state == "ok" else None,
     )
 
 

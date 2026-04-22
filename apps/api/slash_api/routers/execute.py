@@ -55,6 +55,7 @@ class ExecuteResponse(BaseModel):
     # plan fields (write path)
     plan_text: str | None = None
     rollback_hint: str | None = None
+    rollback_command: str | None = None  # pre-rendered, parse-ready slash command
     before: dict | None = None
     after: dict | None = None
     # error fields
@@ -179,6 +180,7 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
         argv = build_argv(manifest, ctx)
         plan_before, plan_after = _render_plan(manifest, ctx, env_update, timeout_s)
         pf_argv = _render_preflight(manifest, ctx)
+        rollback_cmd = _render_rollback(manifest, ctx, plan_before, plan_after)
         plan = PendingPlan(
             run_id=run_id,
             command=req.text,
@@ -198,6 +200,7 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             profile_name=ctx.profile_name,
             output_spec=output_spec,
             preflight_argv=pf_argv,
+            rollback_command=rollback_cmd,
         )
         put_plan(plan)
 
@@ -221,6 +224,7 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             argv=argv,
             plan_text=plan.plan_text,
             rollback_hint=plan.rollback_hint,
+            rollback_command=plan.rollback_command or None,
             before=plan.before,
             after=plan.after,
             output_spec=output_spec,
@@ -341,6 +345,41 @@ def _shape_result(result: RunResult, output_spec: dict) -> tuple[str, Any, str |
     except Exception as exc:  # noqa: BLE001
         return "error", None, "OutputParseError", str(exc)
     return "ok", outputs, None, None
+
+
+def _render_rollback(manifest: dict, ctx: BuildContext, before: dict | None, after: dict | None) -> str:
+    """Interpolate spec.rollback with the full context (args + profile + ${before}
+    + ${after}). Returns a slash command string iff the rendered text starts with
+    "/"; prose rollback hints return "". The empty string signals "no automatic
+    rollback possible" to the UI.
+
+    Safety: we render ONLY — the renderer is string-level substitution. The
+    rendered command still has to be parsed and re-approved through the normal
+    /execute + HITL flow before it runs. There is no back-channel here.
+    """
+    tmpl = str(manifest.get("spec", {}).get("rollback") or "").strip()
+    if not tmpl or not tmpl.startswith("/"):
+        return ""
+    from slash_api.runtime.builder import _interpolate
+
+    extra: dict[str, Any] = {}
+    if before and "value" in before:
+        extra["before"] = str(before.get("value") or "").strip()
+    if after and "value" in after:
+        extra["after"] = str(after.get("value") or "").strip()
+    ext_ctx = BuildContext(
+        args={**ctx.args, **extra},
+        positional=ctx.positional,
+        profile_kind=ctx.profile_kind,
+        profile_name=ctx.profile_name,
+        k8s_context=ctx.k8s_context,
+    )
+    rendered = _interpolate(tmpl, ext_ctx).strip()
+    # Refuse to emit a command with unresolved placeholders — it would fail parse
+    # anyway, better to hide the button than offer a broken command.
+    if "${" in rendered or "<" in rendered:
+        return ""
+    return rendered
 
 
 def _render_preflight(manifest: dict, ctx: BuildContext) -> list[str]:
