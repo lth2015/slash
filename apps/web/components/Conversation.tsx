@@ -73,7 +73,11 @@ function TurnView({
     return (
       <section className="space-y-3">
         <UserCommandRow text={turn.command} />
-        <ResultCard result={turn.result} onRollback={onSuggestionClick} />
+        <ResultCard
+          result={turn.result}
+          onRollback={onSuggestionClick}
+          onAction={onSuggestionClick}
+        />
         {turn.llm && (
           <LlmSummaryCard
             data={turn.llm}
@@ -109,7 +113,11 @@ function TurnView({
       )}
       {turn.stage === "running" && <RunCard streaming message="" />}
       {turn.stage === "done" && turn.result && (
-        <ResultCard result={turn.result} onRollback={onSuggestionClick} />
+        <ResultCard
+          result={turn.result}
+          onRollback={onSuggestionClick}
+          onAction={onSuggestionClick}
+        />
       )}
       {turn.stage === "rejected" && (
         <ErrorCard

@@ -27,6 +27,10 @@ spec:
   output:
     parse: json
     kind: table
+    row_actions:
+      - { label: "Start",  command: "/infra gcp vm start ${name} --zone  --reason " }
+      - { label: "Stop",   command: "/infra gcp vm stop ${name} --zone  --reason " }
+      - { label: "Reboot", command: "/infra gcp vm reboot ${name} --zone  --reason " }
     columns:
       - { key: name,          label: "Name" }
       - { key: zone,          label: "Zone" }

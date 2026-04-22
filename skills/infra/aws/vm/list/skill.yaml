@@ -37,6 +37,12 @@ spec:
     parse: json
     path: "Reservations[].Instances[]"
     kind: table
+    row_actions:
+      - { label: "Get",    command: "/infra aws vm get ${InstanceId}" }
+      - { label: "Start",  command: "/infra aws vm start ${InstanceId} --reason " }
+      - { label: "Stop",   command: "/infra aws vm stop ${InstanceId} --reason " }
+      - { label: "Reboot", command: "/infra aws vm reboot ${InstanceId} --reason " }
+      - { label: "Resize", command: "/infra aws vm resize ${InstanceId} --type  --reason " }
     columns:
       - { key: InstanceId,           label: "ID" }
       - { key: Tags.Name,            label: "Name", fallback: "-" }

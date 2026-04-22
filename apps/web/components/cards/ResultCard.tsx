@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronDown, ChevronsUpDown, RotateCcw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronsUpDown, MoreHorizontal, RotateCcw } from "lucide-react";
 
 import { Card, CardMeta } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
@@ -15,11 +15,22 @@ type Column = {
   fallback?: string;
 };
 
+/** A row_action declares one follow-up skill invocation applied to a table
+ *  row. `command` is a slash-command template; any `${path.to.key}` tokens
+ *  are resolved against the row object at click time. The resolved command
+ *  is dropped into the CommandBar (never auto-run) so the user sees the
+ *  full shape and can edit required args (like --reason) before Enter. */
+export interface RowAction {
+  label: string;
+  command: string;
+}
+
 export interface OutputSpec {
   kind?: "table" | "object" | "log" | "chart";
   parse?: "json" | "text" | "lines";
   path?: string;
   columns?: Column[];
+  row_actions?: RowAction[];
 }
 
 export interface ResultPayload {
@@ -41,12 +52,16 @@ export interface ResultPayload {
 export function ResultCard({
   result,
   onRollback,
+  onAction,
 }: {
   result: ResultPayload;
   attached?: boolean;
   /** Called when the user clicks "Roll back". Receives the pre-rendered slash
    *  command; consumer should populate the CommandBar with it (not auto-run). */
   onRollback?: (cmd: string) => void;
+  /** Called when the user picks a row action. Receives the interpolated
+   *  slash command; consumer should populate the CommandBar with it. */
+  onAction?: (cmd: string) => void;
 }) {
   const spec = result.output_spec ?? {};
   const kind = spec.kind ?? "object";
@@ -67,6 +82,8 @@ export function ResultCard({
           <TableView
             rows={asArray(result.outputs)}
             columns={spec.columns ?? []}
+            rowActions={spec.row_actions}
+            onAction={onAction}
           />
         )}
         {kind === "object" && <ObjectView value={result.outputs} />}
@@ -119,9 +136,20 @@ function asArray(v: unknown): unknown[] {
 }
 
 // ── Table ──────────────────────────────────────────────────────────────
-function TableView({ rows, columns }: { rows: unknown[]; columns: Column[] }) {
+function TableView({
+  rows,
+  columns,
+  rowActions,
+  onAction,
+}: {
+  rows: unknown[];
+  columns: Column[];
+  rowActions?: RowAction[];
+  onAction?: (cmd: string) => void;
+}) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [openRow, setOpenRow] = useState<number | null>(null);
 
   const sorted = useMemo(() => {
     if (!sortKey) return rows;
@@ -141,6 +169,8 @@ function TableView({ rows, columns }: { rows: unknown[]; columns: Column[] }) {
       </div>
     );
   }
+
+  const hasActions = !!(rowActions && rowActions.length && onAction);
 
   return (
     <div className="overflow-x-auto">
@@ -169,6 +199,7 @@ function TableView({ rows, columns }: { rows: unknown[]; columns: Column[] }) {
                 </span>
               </th>
             ))}
+            {hasActions && <th className="w-10" aria-label="actions" />}
           </tr>
         </thead>
         <tbody>
@@ -182,12 +213,144 @@ function TableView({ rows, columns }: { rows: unknown[]; columns: Column[] }) {
                   <CellRenderer row={row} col={c} />
                 </td>
               ))}
+              {hasActions && (
+                <td className="w-10 px-2 whitespace-nowrap relative">
+                  <RowActionMenu
+                    open={openRow === i}
+                    onToggle={(next) => setOpenRow(next ? i : null)}
+                    row={row}
+                    actions={rowActions!}
+                    onPick={(cmd) => {
+                      onAction!(cmd);
+                      setOpenRow(null);
+                    }}
+                  />
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   );
+}
+
+// ── Row action menu ────────────────────────────────────────────────────
+function RowActionMenu({
+  open,
+  onToggle,
+  row,
+  actions,
+  onPick,
+}: {
+  open: boolean;
+  onToggle: (next: boolean) => void;
+  row: unknown;
+  actions: RowAction[];
+  onPick: (cmd: string) => void;
+}) {
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Click-outside + Esc close. Registered while open so the cost is zero
+  // for the overwhelming majority of rows (closed).
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(e.target as Node)) onToggle(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onToggle(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, onToggle]);
+
+  const rendered = useMemo(
+    () => actions.map((a) => ({ ...a, resolved: interpolateRow(a.command, row) })),
+    [actions, row],
+  );
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onToggle(!open); }}
+        className={cn(
+          "w-7 h-7 rounded-md flex items-center justify-center transition-colors duration-80",
+          open ? "bg-brand-tint text-brand" : "text-text-muted hover:bg-elevated hover:text-text-primary",
+        )}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Act on this row"
+      >
+        <MoreHorizontal size={14} />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className={cn(
+            "absolute right-0 top-full mt-1 z-30",
+            "min-w-[320px] max-w-[520px]",
+            "bg-surface border border-border rounded-xl shadow-palette",
+            "animate-pop-in overflow-hidden",
+          )}
+        >
+          <div className="px-4 h-9 flex items-center border-b border-border-subtle bg-surface-sub">
+            <span className="kicker text-brand">Act on this row</span>
+          </div>
+          <ul>
+            {rendered.map((a, idx) => {
+              const broken = a.resolved.includes("${");
+              return (
+                <li key={idx}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={broken}
+                    onClick={() => onPick(a.resolved)}
+                    className={cn(
+                      "w-full text-left px-4 py-2.5 flex flex-col gap-0.5",
+                      "border-b border-border-subtle last:border-b-0",
+                      broken
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:bg-brand-tint transition-colors duration-80",
+                    )}
+                  >
+                    <span className="font-display font-semibold text-[13px] text-text-primary">
+                      {a.label}
+                    </span>
+                    <span className="font-mono text-[12px] text-text-secondary truncate">
+                      {a.resolved}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="px-4 h-7 flex items-center border-t border-border-subtle bg-surface-sub text-caption tracking-chip text-text-muted">
+            inserts into Command Bar · press ↵ to run
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Interpolate `${dotted.path}` tokens in a template against a row object.
+ *  Unresolved placeholders are left intact so the menu can gray out the
+ *  action instead of silently emitting a broken command. */
+function interpolateRow(template: string, row: unknown): string {
+  return template.replace(/\$\{([^}]+)\}/g, (match, path) => {
+    const v = resolveKey(row, path);
+    if (v === undefined || v === null || v === "") return match;
+    return String(v);
+  });
 }
 
 function CellRenderer({ row, col }: { row: unknown; col: Column }) {

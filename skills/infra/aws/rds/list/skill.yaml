@@ -30,6 +30,9 @@ spec:
     parse: json
     path: "DBInstances[]"
     kind: table
+    row_actions:
+      - { label: "Reboot",          command: "/infra aws rds reboot ${DBInstanceIdentifier} --reason " }
+      - { label: "Reboot · failover", command: "/infra aws rds reboot ${DBInstanceIdentifier} --force-failover true --reason " }
     columns:
       - { key: DBInstanceIdentifier, label: "ID" }
       - { key: Engine,               label: "Engine" }

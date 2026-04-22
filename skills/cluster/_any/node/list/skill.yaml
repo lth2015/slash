@@ -29,6 +29,11 @@ spec:
     parse: json
     path: "items[]"
     kind: table
+    row_actions:
+      - { label: "Describe", command: "/cluster node describe ${metadata.name}" }
+      - { label: "Cordon",   command: "/cluster node cordon ${metadata.name} --reason " }
+      - { label: "Uncordon", command: "/cluster node uncordon ${metadata.name} --reason " }
+      - { label: "Drain",    command: "/cluster node drain ${metadata.name} --reason " }
     columns:
       - { key: metadata.name,                     label: "Node" }
       - { key: status.conditions,                 label: "Ready",   renderer: state-badge }

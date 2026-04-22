@@ -27,6 +27,9 @@ spec:
     parse: json
     path: "Buckets[]"
     kind: table
+    row_actions:
+      - { label: "List objects",  command: "/infra aws s3 ls ${Name}" }
+      - { label: "Objects · data/", command: "/infra aws s3 ls ${Name} --prefix data/" }
     columns:
       - { key: Name,         label: "Bucket" }
       - { key: CreationDate, label: "Created", renderer: relative-time }
