@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Starts the Slash demo: FastAPI on :4456, Next.js on :4455.
+# See docs/07-roadmap.md — M0.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+API_PY="$ROOT/apps/api/.venv/bin/python"
+WEB_DIR="$ROOT/apps/web"
+
+if [[ ! -x "$API_PY" ]]; then
+  echo "!! API venv missing. Run: make setup" >&2
+  exit 1
+fi
+
+if [[ ! -d "$WEB_DIR/node_modules" ]]; then
+  echo "!! web node_modules missing. Run: make setup" >&2
+  exit 1
+fi
+
+cleanup() {
+  echo
+  echo ">> Shutting down..."
+  [[ -n "${API_PID:-}" ]] && kill "$API_PID" 2>/dev/null || true
+  [[ -n "${WEB_PID:-}" ]] && kill "$WEB_PID" 2>/dev/null || true
+  wait 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+echo ">> Starting API on http://127.0.0.1:4456"
+(
+  cd "$ROOT/apps/api"
+  "$API_PY" -m uvicorn slash_api.main:app --host 127.0.0.1 --port 4456 --log-level info
+) &
+API_PID=$!
+
+echo ">> Starting Web on http://localhost:4455"
+(
+  cd "$WEB_DIR"
+  pnpm dev
+) &
+WEB_PID=$!
+
+echo
+echo "Slash is up."
+echo "  UI:  http://localhost:4455"
+echo "  API: http://127.0.0.1:4456"
+echo "  Docs: open docs/00-README.md"
+echo
+echo "Ctrl-C to stop."
+
+wait "$API_PID" "$WEB_PID"

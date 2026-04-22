@@ -1,0 +1,16 @@
+{
+  "name": "slash",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Unified command palette for SRE — see docs/",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @slash/web dev",
+    "build": "pnpm --filter @slash/web build",
+    "lint": "pnpm --filter @slash/web lint",
+    "typecheck": "pnpm --filter @slash/web typecheck"
+  }
+}

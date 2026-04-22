@@ -1,0 +1,52 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.vm.list
+  name: "List AWS VMs"
+  description: "List EC2 instances in a region, optionally filtered by tag."
+  owners: [sre-platform@example.com]
+  version: 0.0.1
+  labels:
+    stability: experimental
+    risk: low
+spec:
+  command:
+    namespace: infra
+    target: aws
+    noun: [vm]
+    verb: list
+  mode: read
+  danger: false
+  approvers: 0
+  timeout: 30s
+  args:
+    - name: region
+      flag: --region
+      type: string
+      required: false
+      default: "us-east-1"
+    - name: tag
+      flag: --tag
+      type: "map<string,string>"
+      repeatable: true
+      required: false
+  capabilities:
+    - aws.ec2:DescribeInstances
+  output:
+    kind: table
+    columns:
+      - { key: id, label: "Instance ID", width: 20 }
+      - { key: name, label: "Name", width: 28 }
+      - { key: state, label: "State", renderer: badge }
+      - { key: type, label: "Type" }
+      - { key: region, label: "Region" }
+      - { key: launched, label: "Launched", renderer: relative-time }
+    sort_by: launched
+    row_key: id
+  plan:
+    effects: []
+  entrypoint:
+    language: python
+    file: run.py
+    plan_fn: plan
+    run_fn: run
