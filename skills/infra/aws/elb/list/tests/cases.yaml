@@ -1,0 +1,20 @@
+cases:
+  - name: "happy path"
+    input: "/infra aws elb list --region us-east-1"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 1
+      outputs_row0:
+        LoadBalancerName: "prod-api-alb"
+
+  - name: "empty region"
+    input: "/infra aws elb list --region af-south-1"
+    mock:
+      stdout: "empty.json"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 0

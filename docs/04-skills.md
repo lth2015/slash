@@ -203,50 +203,48 @@ spec:
 ```yaml
 # skills/infra/aws/vm/list/tests/cases.yaml
 cases:
-  - name: happy path
-    args: { region: us-east-1, tag: { env: prod } }
-    mock_stdout: fixtures/aws-ec2-happy.json
+  - name: "happy path"
+    input: "/infra aws vm list --region us-east-1"
+    mock:
+      stdout: "happy.json"   # path relative to this skill's tests/fixtures/
+      exit: 0
     expect:
-      state: ok
-      rows_min: 1
-      contains_columns: [InstanceId, State.Name]
+      state: "ok"            # ok | error | awaiting_approval
+      outputs_len: 2         # len(outputs); drop the key to skip
+      outputs_row0:          # dotted-path lookups into outputs[0]
+        InstanceId: "i-0a1b2c3d"
+        State.Name: "running"
 
-  - name: empty
-    args: { region: eu-north-1 }
-    mock_stdout: fixtures/aws-ec2-empty.json
-    expect: { state: ok, rows: 0 }
+  - name: "empty region"
+    input: "/infra aws vm list --region eu-west-2"
+    mock: { stdout: "empty.json", exit: 0 }
+    expect: { state: "ok", outputs_len: 0 }
 
-  - name: permission denied
-    args: { region: us-east-1 }
-    mock_exit: 254
-    mock_stderr: "An error occurred (UnauthorizedOperation) ..."
+  - name: "aws exec error surfaces ExecutionError"
+    input: "/infra aws vm list --region us-east-1"
+    mock:
+      stdout: "empty.json"
+      exit: 254
+      stderr: "An error occurred (AuthFailure) ..."
     expect:
-      state: error
-      error_code: PreflightFailed
-      hint_contains: "UnauthorizedOperation"
-
-  - name: slow → timeout
-    args: { region: us-east-1 }
-    mock_latency: 60s
-    expect:
-      state: error
-      error_code: Timeout
-
-  - name: injection attempt
-    args: { region: 'us-east-1; rm -rf /' }
-    expect:
-      state: error
-      error_code: ParseError.InvalidToken   # parser 早拦，不会走到 runtime
+      state: "error"
+      error_code: "ExecutionError"
 ```
 
-**Harness loop**（每次 Skill 改动执行）：
-1. **Unit** — mock bash 的 stdout / stderr / exit / latency，验证 runtime 把结果渲染成期望的 Result 卡 schema。
-2. **Smoke** — 对可接 mock 的 provider：AWS 用 `moto`、K8s 用 `kind`。这些是 opt-in，本机装好再跑。
-3. **Chaos** — 断网、超时、权限错误、返回非法 JSON 都要有明确错误卡，不得 500。
-4. **Injection** — 参数里塞 shell metachar、反引号、`$( )`、换行；期望 parser 早拦。
-5. **Replay** — 给定真实 run 的 fixture，验证一次历史运行"现在还能解释"（防 skill 改坏）。
+**Harness loop** — the runner lives at `apps/api/tests/test_harness.py` and
+parametrizes one pytest test per `(skill, case)`:
+1. Auto-discover `skills/**/tests/cases.yaml` at collection time.
+2. For each case: set `SLASH_MOCK_STDOUT_PATH` / `SLASH_MOCK_EXIT` /
+   `SLASH_MOCK_STDERR` via `monkeypatch`, POST `/execute` with
+   `{text: case.input}`, assert the response against `expect`.
+3. The subprocess mock layer lives in `runtime/executor.py` — when those env
+   vars are set, `execute()` returns synthesised RunResult without ever
+   touching a real shell.
 
-CI `apps/api/tests/test_skill_harness.py` 自动跑 `skills/**/cases.yaml`，失败即 PR 红。
+**What harness covers today**: read-path skills (`state: ok / error` plus
+output shape). **Not yet covered**: write skills' full approve cycle,
+timeouts (`SLASH_MOCK_LATENCY_MS` is wired but untested), shell-injection
+cases (parser already blocks them in `test_parser.py`).
 
 ## 6. 加载与热更新
 

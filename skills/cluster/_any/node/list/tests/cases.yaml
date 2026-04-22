@@ -1,0 +1,12 @@
+cases:
+  - name: "happy path"
+    input: "/cluster prod node list"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 2
+      outputs_row0:
+        metadata.name: "ip-10-0-1-10"
+        status.nodeInfo.kubeletVersion: "v1.30.2"

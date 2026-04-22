@@ -1,0 +1,12 @@
+{
+  "LoadBalancers": [
+    {
+      "LoadBalancerName": "prod-api-alb",
+      "Type": "application",
+      "Scheme": "internet-facing",
+      "State": {"Code": "active"},
+      "DNSName": "prod-api-alb-1234.us-east-1.elb.amazonaws.com",
+      "CreatedTime": "2023-09-15T00:00:00.000Z"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "name": "ip-10-0-1-10",
+        "creationTimestamp": "2025-11-01T00:00:00Z",
+        "labels": {"node-role.kubernetes.io/control-plane": ""}
+      },
+      "status": {
+        "nodeInfo": {"kubeletVersion": "v1.30.2"},
+        "conditions": [{"type": "Ready", "status": "True"}]
+      }
+    },
+    {
+      "metadata": {
+        "name": "ip-10-0-1-11",
+        "creationTimestamp": "2025-11-05T00:00:00Z",
+        "labels": {}
+      },
+      "status": {
+        "nodeInfo": {"kubeletVersion": "v1.30.2"},
+        "conditions": [{"type": "Ready", "status": "True"}]
+      }
+    }
+  ]
+}

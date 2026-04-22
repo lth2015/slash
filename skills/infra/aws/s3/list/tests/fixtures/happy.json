@@ -1,0 +1,8 @@
+{
+  "Buckets": [
+    {"Name": "prod-artifacts",      "CreationDate": "2024-04-01T00:00:00.000Z"},
+    {"Name": "backup-us-east-1",    "CreationDate": "2023-11-15T00:00:00.000Z"},
+    {"Name": "logs-archive",        "CreationDate": "2022-02-01T00:00:00.000Z"}
+  ],
+  "Owner": {"DisplayName": "acme", "ID": "abcdef"}
+}

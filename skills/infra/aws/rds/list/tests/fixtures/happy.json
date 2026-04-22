@@ -1,0 +1,22 @@
+{
+  "DBInstances": [
+    {
+      "DBInstanceIdentifier": "prod-orders",
+      "Engine": "postgres",
+      "EngineVersion": "16.3",
+      "DBInstanceClass": "db.m6g.large",
+      "DBInstanceStatus": "available",
+      "Endpoint": {"Address": "prod-orders.xyz.rds.amazonaws.com", "Port": 5432},
+      "InstanceCreateTime": "2024-06-01T00:00:00.000Z"
+    },
+    {
+      "DBInstanceIdentifier": "staging-orders",
+      "Engine": "postgres",
+      "EngineVersion": "16.3",
+      "DBInstanceClass": "db.t4g.medium",
+      "DBInstanceStatus": "available",
+      "Endpoint": {"Address": "staging-orders.xyz.rds.amazonaws.com", "Port": 5432},
+      "InstanceCreateTime": "2024-07-10T00:00:00.000Z"
+    }
+  ]
+}

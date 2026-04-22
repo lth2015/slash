@@ -1,0 +1,24 @@
+{
+  "Reservations": [
+    {
+      "Instances": [
+        {
+          "InstanceId": "i-0a1b2c3d",
+          "State": {"Name": "running"},
+          "InstanceType": "t3.medium",
+          "Placement": {"AvailabilityZone": "us-east-1a"},
+          "Tags": [{"Key": "Name", "Value": "web-1"}, {"Key": "env", "Value": "prod"}],
+          "LaunchTime": "2025-11-01T00:00:00.000Z"
+        },
+        {
+          "InstanceId": "i-9e8d7c6b",
+          "State": {"Name": "stopped"},
+          "InstanceType": "t3.small",
+          "Placement": {"AvailabilityZone": "us-east-1b"},
+          "Tags": [{"Key": "Name", "Value": "batch-1"}],
+          "LaunchTime": "2025-10-15T00:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}

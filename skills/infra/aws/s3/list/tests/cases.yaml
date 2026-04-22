@@ -1,0 +1,11 @@
+cases:
+  - name: "happy path"
+    input: "/infra aws s3 list"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 3
+      outputs_row0:
+        Name: "prod-artifacts"

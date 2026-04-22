@@ -1,0 +1,14 @@
+{
+  "items": [
+    {
+      "metadata": {"name": "web-59d8c-abc", "creationTimestamp": "2026-04-20T10:00:00Z"},
+      "status":   {"phase": "Running", "podIP": "10.42.0.17"},
+      "spec":     {"nodeName": "ip-10-0-1-42"}
+    },
+    {
+      "metadata": {"name": "web-59d8c-xyz", "creationTimestamp": "2026-04-20T10:00:00Z"},
+      "status":   {"phase": "Pending", "podIP": ""},
+      "spec":     {"nodeName": "ip-10-0-1-43"}
+    }
+  ]
+}
