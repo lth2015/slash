@@ -53,10 +53,10 @@ export function ContextBar() {
   }
 
   return (
-    <div className="h-12 flex items-center px-5 gap-6 border-b border-border bg-surface">
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-ok text-[16px] leading-none select-none">/</span>
-        <span className="font-semibold tracking-tight text-[14px]">Slash</span>
+    <div className="h-12 flex items-center px-5 gap-6 border-b border-border bg-surface/80 backdrop-blur-sm">
+      <div className="flex items-center gap-2 select-none">
+        <span className="font-mono brand-grad font-bold text-[18px] leading-none">/</span>
+        <span className="font-semibold tracking-tight text-[14px] text-text-primary">Slash</span>
       </div>
 
       <div className="h-4 w-px bg-border-subtle" aria-hidden />

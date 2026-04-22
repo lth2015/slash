@@ -155,11 +155,12 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
   }, [value]);
 
   return (
-    <div className="border-t border-border bg-surface">
+    <div className="border-t border-border bg-surface/80 backdrop-blur-sm">
       <div
         className={cn(
-          "flex items-stretch",
-          focused && "shadow-[inset_0_0_0_1px_var(--focus)]",
+          "flex items-stretch transition-shadow duration-160 ease-m-instant",
+          focused &&
+            "shadow-[inset_0_1px_0_0_var(--accent),0_-8px_24px_-12px_color-mix(in_oklab,var(--accent)_55%,transparent)]",
           disabled && "opacity-60 pointer-events-none",
         )}
       >

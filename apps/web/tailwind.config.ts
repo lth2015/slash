@@ -28,6 +28,11 @@ const config: Config = {
         pending: "var(--pending)",
         llm: "var(--llm)",
         focus: "var(--focus)",
+        accent: {
+          DEFAULT: "var(--accent)",
+          deep: "var(--accent-deep)",
+          soft: "var(--accent-soft)",
+        },
       },
       fontFamily: {
         sans: ["var(--font-geist-sans)", "ui-sans-serif", "system-ui", "sans-serif"],

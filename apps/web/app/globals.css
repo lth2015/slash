@@ -2,43 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Control Ledger — dark (default) */
+/* Control Ledger · Cosmic Orange — dark (default) */
 :root {
   color-scheme: dark;
-  --canvas:        #0B0E13;
-  --surface:       #10141B;
-  --elevated:      #161B25;
-  --border-subtle: #1D232D;
-  --border:        #2A313E;
-  --text-primary:  #E6EAF1;
-  --text-secondary:#A1A9B8;
-  --text-muted:    #6B7383;
-  --ok:            #4CB27E;
-  --write:         #DD8A3E;
-  --danger:        #E54B57;
-  --warn:          #E8C44D;
-  --pending:       #6F8CB5;
-  --llm:           #C8A46B;
-  --focus:         #5EA0FF;
+  --canvas:        #0F0B09;
+  --surface:       #17120F;
+  --elevated:      #201915;
+  --border-subtle: #2A221C;
+  --border:        #3A2F26;
+  --text-primary:  #F5ECE3;
+  --text-secondary:#B9ADA0;
+  --text-muted:    #807466;
+  --ok:            #3FC584;
+  --write:         #FFB05A;
+  --danger:        #FF5A63;
+  --warn:          #FFD046;
+  --pending:       #8FA6CC;
+  --llm:           #E0B070;
+  --focus:         #FF7A3D;
+  --accent:        #FF7A3D;
+  --accent-deep:   #F05F2A;
+  --accent-soft:   #FFA76B;
 }
 
 html.light {
   color-scheme: light;
-  --canvas:        #F7F8FA;
+  --canvas:        #FFF8F2;
   --surface:       #FFFFFF;
-  --elevated:      #F1F3F7;
-  --border-subtle: #E6E8EE;
-  --border:        #D0D4DC;
-  --text-primary:  #0B0E13;
-  --text-secondary:#4B5462;
-  --text-muted:    #8A92A0;
-  --ok:            #137A45;
-  --write:         #B5661F;
-  --danger:        #C02632;
-  --warn:          #A07A12;
+  --elevated:      #FDF1E5;
+  --border-subtle: #F1E2CF;
+  --border:        #D9C4AB;
+  --text-primary:  #2A1C12;
+  --text-secondary:#5A4A3C;
+  --text-muted:    #8E7F6F;
+  --ok:            #0E8A4A;
+  --write:         #C56A18;
+  --danger:        #C8202C;
+  --warn:          #9A7400;
   --pending:       #3B5B84;
   --llm:           #8A6A30;
-  --focus:         #1D6FE0;
+  --focus:         #E25A1E;
+  --accent:        #E25A1E;
+  --accent-deep:   #B64411;
+  --accent-soft:   #FF8A4D;
 }
 
 html,
@@ -48,6 +54,10 @@ body {
 
 body {
   @apply bg-canvas text-text-primary font-sans antialiased;
+  background-image:
+    radial-gradient(1100px 520px at 92% -12%, color-mix(in oklab, var(--accent) 18%, transparent) 0%, transparent 65%),
+    radial-gradient(800px 480px at -10% 110%, color-mix(in oklab, var(--accent-deep) 10%, transparent) 0%, transparent 60%);
+  background-attachment: fixed;
 }
 
 *:focus-visible {
@@ -57,7 +67,7 @@ body {
 }
 
 ::selection {
-  background-color: color-mix(in oklab, var(--focus) 25%, transparent);
+  background-color: color-mix(in oklab, var(--focus) 30%, transparent);
 }
 
 .cm-editor,
@@ -65,7 +75,7 @@ body {
 
 /* CodeMirror token classes — see components/editor/theme.ts */
 .tok-slash     { color: var(--text-muted); }
-.tok-namespace { color: color-mix(in oklab, var(--focus) 95%, transparent); }
+.tok-namespace { color: var(--accent); }
 .tok-target    { color: var(--text-secondary); }
 .tok-noun      { color: var(--text-primary); }
 .tok-verb      { color: var(--text-primary); }
@@ -80,7 +90,7 @@ body {
 
 /* Wavy error underline (same asset as before, color bound to token) */
 .tok-error {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='3' viewBox='0 0 6 3'><path d='M0 2 Q 1.5 0 3 2 Q 4.5 0 6 2' fill='none' stroke='%23E54B57' stroke-opacity='0.85' stroke-width='1'/></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='3' viewBox='0 0 6 3'><path d='M0 2 Q 1.5 0 3 2 Q 4.5 0 6 2' fill='none' stroke='%23FF5A63' stroke-opacity='0.9' stroke-width='1'/></svg>");
   background-repeat: repeat-x;
   background-position: 0 100%;
   background-size: 6px 3px;
@@ -91,10 +101,32 @@ body {
 /* Tables: tabular numerics everywhere numbers appear */
 .tabular { font-variant-numeric: tabular-nums; }
 
+/* Brand wordmark — cosmic orange gradient */
+.brand-grad {
+  background-image: linear-gradient(135deg, var(--accent-soft) 0%, var(--accent) 45%, var(--accent-deep) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Soft glow halo behind the hero — fades on reduced motion */
+.hero-halo::before {
+  content: "";
+  position: absolute;
+  inset: -40px -20px auto auto;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--accent) 40%, transparent), transparent 70%);
+  filter: blur(30px);
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;
     transition: none !important;
   }
+  .hero-halo::before { display: none; }
 }
