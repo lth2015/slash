@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CircleDashed } from "lucide-react";
 
 import { Card } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
@@ -12,11 +12,19 @@ export interface PlanData {
   after?: { value?: unknown } | null;
   rollback_hint?: string | null;
   reason?: string | null;
+  /** Populated when the write was staged within 60s of a pin change —
+   *  drives the drift banner at the top of the card. */
+  drift?: {
+    kind: "k8s" | "aws" | "gcp";
+    name: string;
+    since_seconds: number;
+  } | null;
 }
 
 export function PlanCard({ plan }: { plan: PlanData; attached?: boolean }) {
   return (
     <Card rail={plan.danger ? "danger" : "write"}>
+      {plan.drift && <DriftBanner drift={plan.drift} />}
       <div className="p-5 space-y-4">
         <header className="flex items-center gap-2">
           <Chip kind={plan.danger ? "danger" : "write"}>
@@ -64,4 +72,25 @@ function fmt(v: unknown): string | null {
   if (v == null) return null;
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
+}
+
+/** Drift guard: a calm second-look nudge when the write landed within 60s
+ *  of the user pinning a different context. Not a block — tone is "Intended?"
+ *  not "STOP". The banner fades into the top of the Plan card, inheriting
+ *  the warn tint (amber) to sit between read-green and write-orange. */
+function DriftBanner({ drift }: { drift: NonNullable<PlanData["drift"]> }) {
+  const ago = drift.since_seconds < 10
+    ? `${Math.max(1, Math.round(drift.since_seconds))}s`
+    : `${Math.round(drift.since_seconds)}s`;
+  return (
+    <div className="flex items-start gap-3 px-5 py-3 bg-warn-soft/60 border-b border-warn/25">
+      <CircleDashed size={15} className="mt-0.5 text-warn shrink-0" aria-hidden />
+      <div className="flex-1 min-w-0">
+        <div className="text-small text-text-primary leading-snug">
+          You pinned <span className="font-mono font-semibold">{drift.kind}·{drift.name}</span> {ago} ago.
+          <span className="text-text-muted"> Intended?</span>
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -53,6 +53,7 @@ export default function Home() {
               after: body.after,
               rollback_hint: null,
               reason: null,
+              drift: body.drift ?? null,
             },
           },
         ]);

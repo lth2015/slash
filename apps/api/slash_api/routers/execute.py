@@ -29,7 +29,9 @@ from slash_api.runtime import (
 )
 from slash_api.runtime.builder import BuildContext
 from slash_api.runtime.profile import env_for_profile, merged_env
-from slash_api.state import registry, selected, user
+from slash_api.state import drift_seconds, registry, selected, user
+
+_DRIFT_WINDOW_SECONDS = 60.0
 
 router = APIRouter(tags=["execute"])
 
@@ -58,6 +60,9 @@ class ExecuteResponse(BaseModel):
     rollback_command: str | None = None  # pre-rendered, parse-ready slash command
     before: dict | None = None
     after: dict | None = None
+    # Drift guard — populated when a write is issued within 60s of a pin
+    # change. Shape: {"kind": "k8s", "name": "prod", "since_seconds": 14}.
+    drift: dict | None = None
     # error fields
     error_code: str | None = None
     error_message: str | None = None
@@ -205,6 +210,7 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
         plan_before, plan_after = _render_plan(manifest, ctx, env_update, timeout_s)
         pf_argv = _render_preflight(manifest, ctx)
         rollback_cmd = _render_rollback(manifest, ctx, plan_before, plan_after)
+        drift_info = _compute_drift(skill, ctx)
         plan = PendingPlan(
             run_id=run_id,
             command=req.text,
@@ -225,6 +231,7 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             output_spec=output_spec,
             preflight_argv=pf_argv,
             rollback_command=rollback_cmd,
+            drift=drift_info,
         )
         put_plan(plan)
 
@@ -252,6 +259,7 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             before=plan.before,
             after=plan.after,
             output_spec=output_spec,
+            drift=drift_info,
         )
 
     # Read → run now. Built-in vs bash branch.
@@ -370,6 +378,33 @@ def _shape_result(result: RunResult, output_spec: dict) -> tuple[str, Any, str |
     except Exception as exc:  # noqa: BLE001
         return "error", None, "OutputParseError", str(exc)
     return "ok", outputs, None, None
+
+
+def _compute_drift(skill, ctx: BuildContext) -> dict | None:
+    """Return a drift snapshot iff the pin for this skill's profile kind was
+    changed within the last _DRIFT_WINDOW_SECONDS. `None` otherwise.
+
+    Structure:
+      {"kind": "k8s" | "aws" | "gcp",
+       "name": "<pin name>",
+       "since_seconds": 14.2}
+
+    The idea: any write that arrives right after a `/ctx pin` call was issued
+    is suspicious (muscle memory — the user was just working elsewhere).
+    The Plan card uses this to print "Context switched X s ago · Intended?"
+    as a second-look nudge without blocking the flow.
+    """
+    kind = ctx.profile_kind
+    if kind not in ("k8s", "aws", "gcp"):
+        return None
+    since = drift_seconds(kind)
+    if since is None or since >= _DRIFT_WINDOW_SECONDS:
+        return None
+    return {
+        "kind": kind,
+        "name": ctx.profile_name or "",
+        "since_seconds": round(since, 1),
+    }
 
 
 def _render_rollback(manifest: dict, ctx: BuildContext, before: dict | None, after: dict | None) -> str:

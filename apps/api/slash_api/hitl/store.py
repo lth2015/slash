@@ -38,6 +38,10 @@ class PendingPlan:
     # Only populated for write skills whose spec.rollback renders to a "/"-prefixed
     # command with all placeholders resolved at plan time.
     rollback_command: str = ""
+    # Drift snapshot captured at plan time. None if the write was staged
+    # outside the 60s drift window. Surviving to approval lets the Approval
+    # Card remind the reviewer of the recent switch.
+    drift: dict | None = None
     created_at: float = field(default_factory=time.time)
 
     # decision
