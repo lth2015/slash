@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Box, Boxes, Cloud, Pin, PinOff } from "lucide-react";
+import { Box, Boxes, Cloud, Pin } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 
@@ -23,13 +23,7 @@ interface ContextState {
 
 type ContextKind = "k8s" | "aws" | "gcp";
 
-interface ContextBarProps {
-  /** Called when user clicks the "Set up pins" CTA — pre-fills the
-   *  CommandBar with a starter command so they can tab through. */
-  onTypeCommand?: (cmd: string) => void;
-}
-
-export function ContextBar({ onTypeCommand }: ContextBarProps = {}) {
+export function ContextBar() {
   const [state, setState] = useState<ContextState | null>(null);
 
   const refresh = useCallback(async () => {
@@ -76,33 +70,6 @@ export function ContextBar({ onTypeCommand }: ContextBarProps = {}) {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        {!anyPinned && (
-          <button
-            type="button"
-            onClick={() => onTypeCommand?.("/ctx list")}
-            className={cn(
-              "group inline-flex items-center gap-2 h-9 pl-3 pr-4 rounded-full",
-              "bg-warn-soft border border-warn/45 text-[oklch(32%_0.10_75)]",
-              "hover:bg-warn/20 hover:border-warn/70 transition-all duration-160",
-              "shadow-xs",
-            )}
-            title="Type /ctx list to see available contexts, then /ctx pin <kind> <name>."
-          >
-            <PinOff size={14} className="text-warn" aria-hidden />
-            <span className="font-display font-semibold text-[13px]">
-              No contexts pinned
-            </span>
-            <span className="text-border">·</span>
-            <span className="font-mono text-[13px] text-warn font-semibold">
-              /ctx list
-            </span>
-            <ArrowRight
-              size={13}
-              className="text-warn transition-transform duration-160 group-hover:translate-x-0.5"
-              aria-hidden
-            />
-          </button>
-        )}
         {pins.map((p) =>
           p.name ? (
             <PinPill key={p.kind} kind={p.kind} name={p.name} tier={p.tier} />

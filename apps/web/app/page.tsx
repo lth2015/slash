@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { CommandBar } from "@/components/CommandBar";
 import { ContextBar } from "@/components/ContextBar";
 import { Conversation, Turn } from "@/components/Conversation";
+import { UnpinnedPrompt } from "@/components/UnpinnedPrompt";
 import type { ErrorPayload } from "@/components/cards/ErrorCard";
 import type { LlmSummary } from "@/components/cards/LlmSummaryCard";
 import type { ResultPayload } from "@/components/cards/ResultCard";
@@ -164,7 +165,8 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <ContextBar onTypeCommand={handleSuggestion} />
+      <ContextBar />
+      <UnpinnedPrompt onTypeCommand={handleSuggestion} />
       <Conversation
         turns={turns}
         onApproved={onApproved}
