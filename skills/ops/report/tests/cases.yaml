@@ -1,0 +1,7 @@
+cases:
+  - name: "aggregate runs all 3 sub-steps"
+    input: "/ops report --since 7d"
+    # No mock needed — all three sub-steps are builtins that hit the
+    # local audit.jsonl directly.
+    expect:
+      state: "ok"

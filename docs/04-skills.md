@@ -182,6 +182,39 @@ spec:
   ...
 ```
 
+### 3.3 LLM-composition skill 示例 — `skills/cluster/_any/diagnose/skill.yaml`
+
+诊断类技能不直接跑 bash，而是**把若干 read skill 的结果聚合成一个证据包**，再交由 `/explain` 让 Gemini 给出分析。用 `builtin: aggregate`：
+
+```yaml
+spec:
+  command: { namespace: cluster, target: _any, noun: [], verb: diagnose }
+  mode: read
+  args:
+    - { name: pod, type: string, positional: true, required: true }
+    - { name: ns,  flag: --ns, type: string, required: true }
+
+  builtin: aggregate
+  builtin_config:
+    steps:
+      - id: pod_state
+        run: "/cluster ${profile.k8s.context} describe pod ${pod} --ns ${ns}"
+      - id: events
+        run: "/cluster ${profile.k8s.context} get event --ns ${ns}"
+      - id: logs_last_30m
+        run: "/cluster ${profile.k8s.context} logs ${pod} --ns ${ns} --since 30m"
+
+  output: { kind: object }
+```
+
+**Aggregate 契约（严格）：**
+
+- 每一步的 `run` 是 slash 命令，字符串模板里的 `${var}` 使用父命令的 ctx 插值。
+- **只允许 read skill** —— aggregate 不递归执行 write 或其他 aggregate。
+- 一个子步骤失败**不阻塞其它步骤**，错误记录在该 step 的 `error` 字段里，整体仍返回 `state: ok`，留给 LLM 解释部分数据。
+- 每个子调用**独立走 /execute 全链路**（preflight、bash、output 解析、audit 写入），所以聚合过程本身也是可审计的。
+- 结果结构：`{"steps": {step_id: {state, outputs, skill_id, command, duration_ms, error}}}`。UI 以 `kind: object` 渲染，LLM 拿到同样的 JSON 做诊断摘要。
+
 ## 4. 参数类型
 
 | 类型 | 例 | 校验 |

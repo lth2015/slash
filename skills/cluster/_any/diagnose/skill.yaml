@@ -1,0 +1,35 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.diagnose
+  name: "Diagnose a pod"
+  description: "Aggregate pod state, recent events, and logs into one evidence bundle for LLM explain."
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [], verb: diagnose }
+  mode: read
+  timeout: 120s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: pod, type: string, positional: true, required: true }
+    - { name: ns,  flag: --ns, type: string, required: true }
+
+  # Built-in: sequentially runs the listed read commands and returns their
+  # outputs keyed by step id. With the LLM toggle on, /explain turns this
+  # bundle into a diagnose report. Each sub-step goes through the usual
+  # preflight + audit path, so the diagnose itself is fully auditable.
+  builtin: aggregate
+  builtin_config:
+    steps:
+      - id: pod_state
+        run: "/cluster ${profile.k8s.context} describe pod ${pod} --ns ${ns}"
+      - id: events
+        run: "/cluster ${profile.k8s.context} get event --ns ${ns}"
+      - id: logs_last_30m
+        run: "/cluster ${profile.k8s.context} logs ${pod} --ns ${ns} --since 30m"
+
+  output:
+    kind: object

@@ -233,7 +233,8 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
     # Read → run now. Built-in vs bash branch.
     builtin_name = manifest.get("spec", {}).get("builtin")
     if builtin_name:
-        state, outputs, err_code, err_msg = run_builtin(builtin_name, ctx.args)
+        builtin_config = manifest.get("spec", {}).get("builtin_config") or {}
+        state, outputs, err_code, err_msg = run_builtin(builtin_name, ctx, builtin_config)
         audit.append({
             "run_id": run_id,
             "user": user(),

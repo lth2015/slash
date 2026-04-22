@@ -1,0 +1,32 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: ops.report
+  name: "Operations report"
+  description: "Slice recent audit trail into buckets (all / scale / restart) for a daily-or-longer recap."
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: ops, noun: [], verb: report }
+  mode: read
+  timeout: 30s
+  profile: { kind: none }
+
+  args:
+    - { name: since, flag: --since, type: duration, default: "1d" }
+
+  # Three read slices of the same audit log. With the LLM toggle on,
+  # /explain turns them into a "what changed and where it hurt" recap.
+  builtin: aggregate
+  builtin_config:
+    steps:
+      - id: audit_trail
+        run: "/ops audit logs --since ${since}"
+      - id: scale_events
+        run: "/ops diagnose scale"
+      - id: restart_events
+        run: "/ops diagnose restart"
+
+  output:
+    kind: object
