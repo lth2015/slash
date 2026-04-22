@@ -1,0 +1,30 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.node.describe
+  name: "Describe a node"
+  description: "Full node detail: conditions, capacity, allocated resources, taints, events."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [node], verb: describe }
+  mode: read
+  timeout: 20s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: name, type: string, positional: true, required: true }
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - describe
+      - node
+      - "${name}"
+
+  output:
+    parse: text
+    kind: log

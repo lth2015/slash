@@ -1,0 +1,54 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.node.drain
+  name: "Drain a node"
+  description: "Cordon a node, then evict all non-daemonset pods. Waits for graceful termination."
+  version: 0.1.0
+  labels: { stability: beta, risk: high }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [node], verb: drain }
+  mode: write
+  danger: true
+  danger_reason: |
+    Evicts every non-daemonset pod on the node. Workloads without enough replicas
+    elsewhere will see brief outages. PDBs can block the drain; retry may be needed.
+  approvers: 1
+  timeout: 600s   # drains often take minutes
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: name,   type: string, positional: true, required: true }
+    - { name: reason, flag: --reason, type: string, required: true }
+    - { name: force,  flag: --force,  type: bool, default: false }
+    - { name: grace,  flag: --grace-period, type: int, default: 30 }
+
+  preflight:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - get
+      - node
+      - "${name}"
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - drain
+      - "${name}"
+      - --ignore-daemonsets
+      - --delete-emptydir-data
+      - "--grace-period=${grace}"
+    expand:
+      - when: force
+        as: ["--force"]
+
+  rollback: "/cluster ${profile.k8s.context} node uncordon ${name} --reason \"rollback drain\""
+
+  output:
+    parse: text
+    kind: log

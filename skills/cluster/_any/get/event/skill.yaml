@@ -1,0 +1,43 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.get.event
+  name: "Recent cluster events"
+  description: "Sorted by last-timestamp. Shows warnings and errors from recent minutes."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [get], verb: event }
+  mode: read
+  timeout: 20s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: ns, flag: --ns, type: string }
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - get
+      - events
+      - --sort-by=.lastTimestamp
+      - -o
+      - json
+    expand:
+      - when: ns
+        as: ["-n", "${value}"]
+
+  output:
+    parse: json
+    path: "items[]"
+    kind: table
+    columns:
+      - { key: lastTimestamp,         label: "When",      renderer: relative-time }
+      - { key: type,                  label: "Type",      renderer: state-badge }
+      - { key: reason,                label: "Reason" }
+      - { key: involvedObject.kind,   label: "Kind" }
+      - { key: involvedObject.name,   label: "Object" }
+      - { key: message,               label: "Message" }

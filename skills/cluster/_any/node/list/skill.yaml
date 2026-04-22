@@ -1,0 +1,37 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.node.list
+  name: "List cluster nodes"
+  description: "List all nodes with role, status, version, and age."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [node], verb: list }
+  mode: read
+  timeout: 20s
+  profile: { kind: k8s, required: true }
+
+  args: []
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - get
+      - nodes
+      - -o
+      - json
+
+  output:
+    parse: json
+    path: "items[]"
+    kind: table
+    columns:
+      - { key: metadata.name,                     label: "Node" }
+      - { key: status.conditions,                 label: "Ready",   renderer: state-badge }
+      - { key: status.nodeInfo.kubeletVersion,    label: "Version" }
+      - { key: metadata.labels.node-role.kubernetes.io/control-plane, label: "Role", fallback: "worker" }
+      - { key: metadata.creationTimestamp,        label: "Age",     renderer: relative-time }

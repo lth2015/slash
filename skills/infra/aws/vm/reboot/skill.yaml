@@ -1,0 +1,49 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.vm.reboot
+  name: "Reboot EC2 instance"
+  description: "Asynchronous reboot — in-guest restart, preserves IP and disks. Faster than stop+start."
+  version: 0.1.0
+  labels: { stability: beta, risk: medium }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [vm], verb: reboot }
+  mode: write
+  danger: false
+  approvers: 1
+  timeout: 60s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: id,     type: string, positional: true, required: true }
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+    - { name: reason, flag: --reason, type: string, required: true }
+
+  preflight:
+    argv:
+      - aws
+      - ec2
+      - describe-instances
+      - --instance-ids
+      - "${id}"
+      - --region
+      - "${region}"
+      - --output
+      - json
+
+  bash:
+    argv:
+      - aws
+      - ec2
+      - reboot-instances
+      - --instance-ids
+      - "${id}"
+      - --region
+      - "${region}"
+
+  rollback: "Reboot cannot be directly undone; watch health checks return to 2/2."
+
+  output:
+    parse: text
+    kind: object

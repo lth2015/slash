@@ -1,0 +1,54 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.delete.pod
+  name: "Delete a pod"
+  description: "Delete a pod by name. Controller-managed pods will be recreated."
+  version: 0.1.0
+  labels: { stability: beta, risk: high }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [delete], verb: pod }
+  mode: write
+  danger: true
+  danger_reason: |
+    Terminates the pod. If it is bare (not controlled), it will not come back.
+    Stateful workloads may lose their current task in-flight.
+  approvers: 1
+  timeout: 60s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: name,   type: string, positional: true, required: true }
+    - { name: ns,     flag: --ns, type: string, required: true }
+    - { name: reason, flag: --reason, type: string, required: true }
+    - { name: grace,  flag: --grace-period, type: int, default: 30 }
+
+  preflight:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - pod
+      - "${name}"
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - delete
+      - pod
+      - "${name}"
+      - "--grace-period=${grace}"
+
+  rollback: "Controller will recreate if pod was part of a Deployment/StatefulSet. Otherwise the pod is gone — reapply the original manifest."
+
+  output:
+    parse: text
+    kind: object

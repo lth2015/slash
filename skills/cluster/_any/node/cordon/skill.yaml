@@ -1,0 +1,57 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.node.cordon
+  name: "Cordon a node"
+  description: "Mark a node unschedulable. Running pods are not evicted; new pods won't land."
+  version: 0.1.0
+  labels: { stability: beta, risk: medium }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [node], verb: cordon }
+  mode: write
+  danger: false
+  approvers: 1
+  timeout: 30s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: name,   type: string, positional: true, required: true }
+    - { name: reason, flag: --reason, type: string, required: true }
+
+  preflight:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - get
+      - node
+      - "${name}"
+
+  plan:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - get
+      - node
+      - "${name}"
+      - -o
+      - jsonpath={.spec.unschedulable}
+    diff:
+      before_source: stdout
+      after_value: "true"
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - cordon
+      - "${name}"
+
+  rollback: "/cluster ${profile.k8s.context} node uncordon ${name} --reason \"rollback cordon\""
+
+  output:
+    parse: text
+    kind: object

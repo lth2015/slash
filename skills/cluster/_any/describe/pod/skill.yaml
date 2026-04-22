@@ -1,0 +1,33 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.describe.pod
+  name: "Describe a pod"
+  description: "Full pod detail: status, events, containers, volumes, conditions."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [describe], verb: pod }
+  mode: read
+  timeout: 20s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: name, type: string, positional: true, required: true }
+    - { name: ns,   flag: --ns, type: string, required: true }
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - describe
+      - pod
+      - "${name}"
+
+  output:
+    parse: text
+    kind: log

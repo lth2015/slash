@@ -1,0 +1,68 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.vm.start
+  name: "Start EC2 instance"
+  description: "Start a stopped EC2 instance. Preflight confirms instance exists and is currently stopped."
+  version: 0.1.0
+  labels: { stability: beta, risk: medium }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [vm], verb: start }
+  mode: write
+  danger: false
+  approvers: 1
+  timeout: 60s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: id,     type: string, positional: true, required: true }
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+    - { name: reason, flag: --reason, type: string, required: true }
+
+  preflight:
+    argv:
+      - aws
+      - ec2
+      - describe-instances
+      - --instance-ids
+      - "${id}"
+      - --region
+      - "${region}"
+      - --output
+      - json
+
+  plan:
+    argv:
+      - aws
+      - ec2
+      - describe-instances
+      - --instance-ids
+      - "${id}"
+      - --region
+      - "${region}"
+      - --query
+      - "Reservations[0].Instances[0].State.Name"
+      - --output
+      - text
+    diff:
+      before_source: stdout
+      after_value: "running"
+
+  bash:
+    argv:
+      - aws
+      - ec2
+      - start-instances
+      - --instance-ids
+      - "${id}"
+      - --region
+      - "${region}"
+      - --output
+      - json
+
+  rollback: "/infra aws vm stop ${id} --region ${region} --reason \"rollback start\""
+
+  output:
+    parse: json
+    kind: object

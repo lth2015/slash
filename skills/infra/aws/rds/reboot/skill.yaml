@@ -1,0 +1,57 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.rds.reboot
+  name: "Reboot RDS instance"
+  description: "Reboot a DB instance. Brief unavailability; --force-failover only if Multi-AZ."
+  version: 0.1.0
+  labels: { stability: beta, risk: high }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [rds], verb: reboot }
+  mode: write
+  danger: true
+  danger_reason: |
+    Causes brief database unavailability (seconds to minutes depending on engine).
+    With --force-failover on a Multi-AZ deployment, flips the primary — connections
+    must reconnect.
+  approvers: 1
+  timeout: 300s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: id,      type: string, positional: true, required: true }
+    - { name: region,  flag: --region, type: string, default: "us-east-1" }
+    - { name: reason,  flag: --reason, type: string, required: true }
+    - { name: failover, flag: --force-failover, type: bool, default: false }
+
+  preflight:
+    argv:
+      - aws
+      - rds
+      - describe-db-instances
+      - --db-instance-identifier
+      - "${id}"
+      - --region
+      - "${region}"
+
+  bash:
+    argv:
+      - aws
+      - rds
+      - reboot-db-instance
+      - --db-instance-identifier
+      - "${id}"
+      - --region
+      - "${region}"
+      - --output
+      - json
+    expand:
+      - when: failover
+        as: ["--force-failover"]
+
+  rollback: "Reboot cannot be directly undone; watch Status return to \"available\"."
+
+  output:
+    parse: json
+    kind: object

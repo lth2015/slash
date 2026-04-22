@@ -1,0 +1,71 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.vm.stop
+  name: "Stop EC2 instance"
+  description: "Gracefully stop a running EC2 instance. Disks persist; public IP may change on next start."
+  version: 0.1.0
+  labels: { stability: beta, risk: high }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [vm], verb: stop }
+  mode: write
+  danger: true
+  danger_reason: |
+    Halts the instance. Any workload on it becomes unreachable until restart.
+    For ephemeral/instance-store disks data is lost on stop — verify before approve.
+  approvers: 1
+  timeout: 90s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: id,     type: string, positional: true, required: true }
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+    - { name: reason, flag: --reason, type: string, required: true }
+
+  preflight:
+    argv:
+      - aws
+      - ec2
+      - describe-instances
+      - --instance-ids
+      - "${id}"
+      - --region
+      - "${region}"
+      - --output
+      - json
+
+  plan:
+    argv:
+      - aws
+      - ec2
+      - describe-instances
+      - --instance-ids
+      - "${id}"
+      - --region
+      - "${region}"
+      - --query
+      - "Reservations[0].Instances[0].State.Name"
+      - --output
+      - text
+    diff:
+      before_source: stdout
+      after_value: "stopped"
+
+  bash:
+    argv:
+      - aws
+      - ec2
+      - stop-instances
+      - --instance-ids
+      - "${id}"
+      - --region
+      - "${region}"
+      - --output
+      - json
+
+  rollback: "/infra aws vm start ${id} --region ${region} --reason \"rollback stop\""
+
+  output:
+    parse: json
+    kind: object

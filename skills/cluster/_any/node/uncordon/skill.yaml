@@ -1,0 +1,57 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.node.uncordon
+  name: "Uncordon a node"
+  description: "Mark a node schedulable again. Reverses cordon; pods resume landing."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [node], verb: uncordon }
+  mode: write
+  danger: false
+  approvers: 1
+  timeout: 30s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: name,   type: string, positional: true, required: true }
+    - { name: reason, flag: --reason, type: string, required: true }
+
+  preflight:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - get
+      - node
+      - "${name}"
+
+  plan:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - get
+      - node
+      - "${name}"
+      - -o
+      - jsonpath={.spec.unschedulable}
+    diff:
+      before_source: stdout
+      after_value: "false"
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - uncordon
+      - "${name}"
+
+  rollback: "/cluster ${profile.k8s.context} node cordon ${name} --reason \"rollback uncordon\""
+
+  output:
+    parse: text
+    kind: object

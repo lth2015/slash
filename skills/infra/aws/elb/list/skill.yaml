@@ -1,0 +1,39 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.elb.list
+  name: "List ALB / NLB load balancers"
+  description: "List Elastic Load Balancers v2 (Application & Network) in a region."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [elb], verb: list }
+  mode: read
+  timeout: 30s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+
+  bash:
+    argv:
+      - aws
+      - elbv2
+      - describe-load-balancers
+      - --region
+      - "${region}"
+      - --output
+      - json
+
+  output:
+    parse: json
+    path: "LoadBalancers[]"
+    kind: table
+    columns:
+      - { key: LoadBalancerName,   label: "Name" }
+      - { key: Type,               label: "Type" }
+      - { key: Scheme,             label: "Scheme" }
+      - { key: State.Code,         label: "State", renderer: state-badge }
+      - { key: DNSName,            label: "DNS" }
+      - { key: CreatedTime,        label: "Created", renderer: relative-time }

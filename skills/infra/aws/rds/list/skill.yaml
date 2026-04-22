@@ -1,0 +1,40 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.rds.list
+  name: "List RDS instances"
+  description: "List RDS DB instances in a region with engine, status, class, and endpoint."
+  version: 0.1.0
+  labels: { stability: beta, risk: low }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [rds], verb: list }
+  mode: read
+  timeout: 30s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+
+  bash:
+    argv:
+      - aws
+      - rds
+      - describe-db-instances
+      - --region
+      - "${region}"
+      - --output
+      - json
+
+  output:
+    parse: json
+    path: "DBInstances[]"
+    kind: table
+    columns:
+      - { key: DBInstanceIdentifier, label: "ID" }
+      - { key: Engine,               label: "Engine" }
+      - { key: EngineVersion,        label: "Version" }
+      - { key: DBInstanceClass,      label: "Class" }
+      - { key: DBInstanceStatus,     label: "State", renderer: state-badge }
+      - { key: Endpoint.Address,     label: "Endpoint", fallback: "—" }
+      - { key: InstanceCreateTime,   label: "Created", renderer: relative-time }
