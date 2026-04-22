@@ -49,19 +49,17 @@ export function ContextBar() {
   const anyPinned = pins.some((p) => p.name);
 
   return (
-    <header className="h-14 flex items-center px-8 border-b border-border-subtle bg-surface/75 backdrop-blur-md">
+    <header className="h-16 flex items-center px-8 border-b border-border-subtle bg-surface/75 backdrop-blur-md">
       <div className="flex items-center gap-3 select-none">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.png"
+          alt="SRE Copilot"
+          className="h-12 w-auto object-contain select-none"
+          draggable={false}
+        />
         <span
-          aria-hidden
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-[15px] font-display font-bold brand-grad border border-brand-soft bg-brand-tint"
-        >
-          ◈
-        </span>
-        <span className="font-display font-bold text-[17px] tracking-tight text-text-primary">
-          SRE Copilot
-        </span>
-        <span
-          className="ml-1 inline-flex items-center gap-1.5 h-5 px-2 rounded-full bg-ok-soft text-ok text-caption tracking-chip"
+          className="inline-flex items-center gap-1.5 h-5 px-2 rounded-full bg-ok-soft text-ok text-caption tracking-chip"
           title="cockpit online"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-ok" aria-hidden />

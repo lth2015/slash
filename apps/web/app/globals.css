@@ -222,3 +222,16 @@ body {
   0%   { opacity: 0; transform: translateY(4px) scale(0.98); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+/* Brief 0.5s flash on the currently-selected snippet placeholder so the
+   eye lands on it immediately after a palette pick. The class is added
+   by CommandBar.tsx for ~500ms, then removed so the selection fades
+   back to its normal tint. */
+.snippet-flash .cm-selectionBackground {
+  animation: snippet-flash 500ms ease-out;
+}
+@keyframes snippet-flash {
+  0%   { background: oklch(58% 0.22 285 / 0.60) !important; }
+  45%  { background: oklch(58% 0.22 285 / 0.45) !important; }
+  100% { background: oklch(58% 0.22 285 / 0.22) !important; }
+}

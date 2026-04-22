@@ -81,6 +81,32 @@ export function renderSkill(skill: Skill): { template: string; insert: string; c
   return { template: insert, insert, caretAt: first };
 }
 
+/** Find the next `<...>` placeholder at or after `from`. Returns the
+ *  full range including the angle brackets so a selection replace wipes
+ *  them cleanly. */
+export function findNextPlaceholder(
+  text: string,
+  from: number,
+): { from: number; to: number } | null {
+  const open = text.indexOf("<", from);
+  if (open === -1) return null;
+  const close = text.indexOf(">", open);
+  if (close === -1) return null;
+  return { from: open, to: close + 1 };
+}
+
+/** Find the previous `<...>` placeholder ending before `before`. */
+export function findPrevPlaceholder(
+  text: string,
+  before: number,
+): { from: number; to: number } | null {
+  const close = text.lastIndexOf(">", Math.max(0, before - 1));
+  if (close === -1) return null;
+  const open = text.lastIndexOf("<", Math.max(0, close - 1));
+  if (open === -1) return null;
+  return { from: open, to: close + 1 };
+}
+
 function hintForArg(a: SkillArg): string {
   if (a.enum && a.enum.length) return `<${a.enum.join("|")}>`;
   if (a.type === "int") return `<n>`;
@@ -321,8 +347,10 @@ export function SuggestionsPanel({
         <span className="kicker text-[12px] text-text-muted flex items-center gap-2">
           <Kbd>esc</Kbd> dismiss
         </span>
-        <span className="ml-auto kicker text-[12px] text-text-muted hidden md:inline">
-          after insert, fill <span className="text-brand font-mono">&lt;placeholders&gt;</span> and press <Kbd>↵</Kbd>
+        <span className="ml-auto kicker text-[12px] text-text-muted hidden md:inline-flex items-center gap-1.5">
+          after insert, type to replace <span className="text-brand font-mono">&lt;ph&gt;</span>
+          · <Kbd>tab</Kbd> next
+          · <Kbd>↵</Kbd> run
         </span>
       </footer>
     </div>

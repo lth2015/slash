@@ -18,6 +18,8 @@ import {
   Suggestion,
   SuggestionsPanel,
   filterSkills,
+  findNextPlaceholder,
+  findPrevPlaceholder,
   useSkills,
 } from "@/components/Suggestions";
 import { cn } from "@/lib/cn";
@@ -124,11 +126,45 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
     const v = viewRef.current;
     if (!v) return;
     const currentLen = v.state.doc.length;
+    // Snippet-mode insertion: replace the full doc, then select the first
+    // <placeholder> so the user's very next keystroke wipes the brackets
+    // and their value takes its place. Tab / Shift+Tab navigate subsequent
+    // placeholders — no manual delete needed.
+    const span = findNextPlaceholder(s.insert, 0);
     v.dispatch({
       changes: { from: 0, to: currentLen, insert: s.insert },
-      selection: { anchor: s.caretAt >= 0 ? s.caretAt : s.insert.length },
+      selection: span
+        ? { anchor: span.from, head: span.to }
+        : { anchor: s.insert.length },
     });
     v.focus();
+    // Briefly flash the newly-selected placeholder so the eye lands on it.
+    if (span) {
+      const el = v.contentDOM;
+      el.classList.remove("snippet-flash");
+      // force reflow so the animation restarts on back-to-back picks
+      void el.offsetWidth;
+      el.classList.add("snippet-flash");
+      window.setTimeout(() => el.classList.remove("snippet-flash"), 520);
+    }
+  }, []);
+
+  const jumpPlaceholder = useCallback((backward: boolean) => {
+    const v = viewRef.current;
+    if (!v) return false;
+    const sel = v.state.selection.main;
+    const doc = v.state.doc.toString();
+    const span = backward
+      ? findPrevPlaceholder(doc, sel.from)
+      : findNextPlaceholder(doc, sel.head);
+    if (!span) return false;
+    v.dispatch({ selection: { anchor: span.from, head: span.to } });
+    const el = v.contentDOM;
+    el.classList.remove("snippet-flash");
+    void el.offsetWidth;
+    el.classList.add("snippet-flash");
+    window.setTimeout(() => el.classList.remove("snippet-flash"), 520);
+    return true;
   }, []);
 
   const closePalette = useCallback(() => {
@@ -176,8 +212,16 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
         key: "Tab",
         preventDefault: true,
         run: () => {
-          if (!openRef.current) return false;
-          return pickCurrent();
+          if (openRef.current) return pickCurrent();
+          return jumpPlaceholder(false);
+        },
+      },
+      {
+        key: "Shift-Tab",
+        preventDefault: true,
+        run: () => {
+          if (openRef.current) return false;
+          return jumpPlaceholder(true);
         },
       },
       {
