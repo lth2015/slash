@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
+import { CornerDownLeft } from "lucide-react";
 
 import {
   ErrorRange,
@@ -385,9 +386,30 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
             )}
           >
             <div ref={parentRef} className="flex-1 min-w-0 px-5 py-1" />
-            <div className="hidden md:flex items-center gap-2 pr-4 text-caption tracking-chip text-text-muted select-none">
-              <kbd className="px-2 py-0.5 rounded-md border border-border-subtle bg-surface-sub font-mono text-[11px]">↵</kbd>
-              <span>run</span>
+            <div className="flex items-center pr-2 py-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const v = viewRef.current;
+                  if (!v) return;
+                  const text = v.state.doc.toString();
+                  if (text.trim()) onSubmitRef.current(text);
+                }}
+                disabled={!value.trim()}
+                className={cn(
+                  "group inline-flex items-center gap-2 h-11 pl-5 pr-4 rounded-lg",
+                  "bg-ok text-white font-display font-semibold text-[14px] tracking-[0.02em]",
+                  "shadow-[0_1px_0_0_oklch(38%_0.14_155_/_0.3)_inset,0_2px_8px_-2px_oklch(62%_0.16_155_/_0.45)]",
+                  "hover:brightness-105 active:brightness-95 transition-all duration-160",
+                  "disabled:opacity-45 disabled:cursor-not-allowed disabled:shadow-none disabled:brightness-100",
+                )}
+                title="Run the command (Enter)"
+              >
+                <span>Run</span>
+                <kbd className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-white/20 font-mono text-[12px]">
+                  <CornerDownLeft size={12} />
+                </kbd>
+              </button>
             </div>
           </div>
           <StatusLine status={status} />
