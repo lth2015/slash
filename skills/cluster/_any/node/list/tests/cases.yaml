@@ -1,6 +1,6 @@
 cases:
   - name: "happy path"
-    input: "/cluster prod node list"
+    input: "/cluster node list"
     mock:
       stdout: "happy.json"
       exit: 0

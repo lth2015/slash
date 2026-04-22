@@ -10,8 +10,15 @@ from slash_api.parser.errors import ParseError
 from slash_api.parser.lexer import Token, TokenKind, tokenize
 
 NAMESPACES = ("infra", "cluster", "app", "ops", "ctx")
-TARGETED_NS = {"infra", "cluster"}  # these require <target> after the namespace
+# /infra still carries an explicit provider positional (aws|gcp — these are
+# distinct domains, not context switches). /cluster no longer consumes a
+# positional k8s context; the ctx is resolved from --ctx flag or session
+# pin at execute time. See docs/04-skills.md §7.
+TARGETED_NS = {"infra"}
 _TARGETED_NS = TARGETED_NS  # legacy alias
+# Universal flags recognized on any skill. Stripped from skill.args binding
+# and placed on CommandAST.overrides.
+_UNIVERSAL_FLAGS = {"--ctx", "--profile", "--explain"}
 _PROVIDERS_FOR_INFRA = ("aws", "gcp")  # used purely to give nicer UnknownCommand hints
 
 
@@ -61,6 +68,11 @@ class CommandAST:
     verb: str
     positional: list[Any] = field(default_factory=list)
     flags: dict[str, Any] = field(default_factory=dict)
+    # Universal overrides — --ctx / --profile / --explain — kept apart from
+    # skill-declared flags so every skill can accept them uniformly without
+    # having to list them in its args. Resolution (pin vs override vs error)
+    # happens at execute time; parser just collects them.
+    overrides: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -71,6 +83,7 @@ class CommandAST:
             "verb": self.verb,
             "positional": self.positional,
             "flags": self.flags,
+            "overrides": self.overrides,
         }
 
 
@@ -166,7 +179,7 @@ def parse(text: str, registry: RegistryLookup) -> CommandAST:
     pos += consumed
 
     # 5. bind remaining tokens to args.
-    positional, flags = _bind_args(skill, tokens, pos, text)
+    positional, flags, overrides = _bind_args(skill, tokens, pos, text)
 
     return CommandAST(
         raw=text,
@@ -177,6 +190,7 @@ def parse(text: str, registry: RegistryLookup) -> CommandAST:
         verb=skill.verb,
         positional=positional,
         flags=flags,
+        overrides=overrides,
     )
 
 
@@ -199,9 +213,10 @@ def _longest_match(
 
 def _bind_args(
     skill: SkillSpec, tokens: list[Token], start: int, raw: str
-) -> tuple[list[Any], dict[str, Any]]:
+) -> tuple[list[Any], dict[str, Any], dict[str, Any]]:
     positional: list[Any] = []
     flags: dict[str, Any] = {}
+    overrides: dict[str, Any] = {}
     declared_flags = {a.flag: a for a in skill.args if a.flag}
     declared_positional = [a for a in skill.args if a.positional]
     pos_idx = 0
@@ -211,7 +226,36 @@ def _bind_args(
         tok = tokens[i]
         if tok.kind is TokenKind.FLAG:
             name, value = _split_flag(tok)
-            spec = declared_flags.get(f"--{name}")
+            fqn = f"--{name}"
+            # Universal flags (--ctx / --profile / --explain) are intercepted
+            # before skill-level binding so any skill can accept them without
+            # having to declare them in args.
+            if fqn in _UNIVERSAL_FLAGS:
+                if name == "explain":
+                    # boolean form: --explain or --explain=true|false
+                    if value is None:
+                        overrides[name] = True
+                        i += 1
+                    else:
+                        overrides[name] = value.lower() != "false"
+                        i += 1
+                    continue
+                # string-valued overrides need a value
+                if value is None:
+                    if i + 1 >= len(tokens) or tokens[i + 1].kind is TokenKind.FLAG:
+                        raise ParseError(
+                            "Validation",
+                            f"flag {fqn} requires a value",
+                            offset=tok.offset,
+                            length=tok.length,
+                        )
+                    overrides[name] = tokens[i + 1].value
+                    i += 2
+                else:
+                    overrides[name] = value
+                    i += 1
+                continue
+            spec = declared_flags.get(fqn)
             if spec is None:
                 raise ParseError(
                     "UnknownFlag",
@@ -291,7 +335,7 @@ def _bind_args(
             if spec.default is not None:
                 flags[key] = spec.default
 
-    return positional, flags
+    return positional, flags, overrides
 
 
 def _split_flag(tok: Token) -> tuple[str, str | None]:

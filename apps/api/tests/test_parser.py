@@ -180,19 +180,31 @@ def test_parses_compound_noun() -> None:
     assert ast.flags["name"] == "snap-1"
 
 
-def test_parses_cluster_with_ctx_target() -> None:
+def test_parses_cluster_with_ctx_override() -> None:
+    # /cluster no longer consumes a positional ctx — it's resolved at execute
+    # time from session pin or --ctx override. The parser records the override.
     ast = parse(
-        '/cluster prod scale web --replicas 10 --ns api --reason "launch day"',
+        '/cluster scale web --replicas 10 --ns api --reason "launch day" --ctx prod',
         registry,
     )
     assert ast.skill_id == "cluster.scale"
-    assert ast.target == "prod"
+    assert ast.target is None
+    assert ast.overrides["ctx"] == "prod"
     assert ast.flags["replicas"] == 10
     assert ast.flags["reason"] == "launch day"
 
 
+def test_parses_cluster_without_ctx_relies_on_pin() -> None:
+    # No --ctx, no positional ctx — parser is happy; resolution is an
+    # execute-time concern (raises MissingContext if no pin either).
+    ast = parse("/cluster scale web --replicas 5 --ns api --reason y", registry)
+    assert ast.skill_id == "cluster.scale"
+    assert ast.target is None
+    assert ast.overrides == {}
+
+
 def test_parses_cluster_with_compound_noun() -> None:
-    ast = parse("/cluster prod rollout restart web --ns api", registry)
+    ast = parse("/cluster rollout restart web --ns api", registry)
     assert ast.skill_id == "cluster.rollout.restart"
     assert ast.positional == ["web"]
 
@@ -262,7 +274,7 @@ def test_duplicate_flag_rejected() -> None:
 
 def test_int_validation() -> None:
     with pytest.raises(ParseError) as exc:
-        parse('/cluster prod scale web --replicas ten --ns api --reason "x"', registry)
+        parse('/cluster scale web --replicas ten --ns api --reason "x"', registry)
     assert exc.value.code == "Validation"
 
 

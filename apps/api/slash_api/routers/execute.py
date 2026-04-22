@@ -69,7 +69,13 @@ def _build_ctx(ast, sel) -> BuildContext:
         if i < len(ast.positional):
             args[positional_name] = ast.positional[i]
     profile_kind, profile_name = _resolve_profile(ast, sel)
-    k8s_context = ast.target if ast.namespace == "cluster" else sel.k8s
+    # For /cluster the k8s context is resolved (strict mode): --ctx override,
+    # else session pin, else None — callers that need it will raise
+    # MissingContext downstream.
+    if ast.namespace == "cluster":
+        k8s_context = ast.overrides.get("ctx") or sel.k8s
+    else:
+        k8s_context = sel.k8s
     return BuildContext(
         args=args,
         positional=list(ast.positional),
@@ -95,14 +101,22 @@ def _skill_for(skill_id: str):
 
 
 def _resolve_profile(ast, sel) -> tuple[str | None, str | None]:
-    # /infra → aws/gcp profile; /cluster → k8s; /app /ops → none
+    """Resolve (profile_kind, profile_name) for the run.
+
+    /infra  — provider comes from the positional target; profile name from
+              --profile override or session pin.
+    /cluster — kind is always k8s; name from --ctx override or session pin.
+    other   — no profile.
+    """
     if ast.namespace == "infra":
+        override = ast.overrides.get("profile")
         if ast.target == "aws":
-            return "aws", sel.aws
+            return "aws", override or sel.aws
         if ast.target == "gcp":
-            return "gcp", sel.gcp
+            return "gcp", override or sel.gcp
     if ast.namespace == "cluster":
-        return "k8s", sel.k8s
+        resolved = ast.overrides.get("ctx") or sel.k8s
+        return "k8s", resolved
     return None, None
 
 
@@ -116,7 +130,7 @@ def _manifest(skill) -> dict:
         return yaml.safe_load(fh) or {}
 
 
-def _preflight(skill, sel, manifest) -> str | None:
+def _preflight(skill, sel, manifest, ast) -> str | None:
     """Return an error message if we should NOT execute; None if ok."""
     profile_kind = (manifest.get("spec", {}).get("profile") or {}).get("kind")
     profile_required = bool((manifest.get("spec", {}).get("profile") or {}).get("required"))
@@ -127,10 +141,20 @@ def _preflight(skill, sel, manifest) -> str | None:
 
     if skill.namespace == "infra":
         kind = "aws" if skill.target == "aws" else "gcp"
-        chosen = sel.aws if kind == "aws" else sel.gcp
+        override = ast.overrides.get("profile")
+        chosen = override or (sel.aws if kind == "aws" else sel.gcp)
         if profile_required and not chosen:
-            return f"No {kind.upper()} profile selected. Pick one in the Context Bar."
-    # /cluster target comes from the command AST itself (the <ctx>), so no preflight here.
+            return (
+                f"No {kind.upper()} profile set. Pin one with "
+                f"`/ctx pin {kind} <name>` or pass `--profile <name>`."
+            )
+    if skill.namespace == "cluster" and profile_required:
+        resolved = ast.overrides.get("ctx") or sel.k8s
+        if not resolved:
+            return (
+                "No k8s context set. Pin one with "
+                "`/ctx pin k8s <name>` or pass `--ctx <name>`."
+            )
     return None
 
 
@@ -161,9 +185,9 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    pre = _preflight(skill, sel, manifest)
+    pre = _preflight(skill, sel, manifest, ast)
     if pre:
-        raise HTTPException(status_code=400, detail={"code": "PreflightFailed", "message": pre})
+        raise HTTPException(status_code=400, detail={"code": "MissingContext", "message": pre})
 
     ctx = _build_ctx(ast, sel)
 
