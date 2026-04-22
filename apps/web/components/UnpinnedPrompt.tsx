@@ -44,9 +44,8 @@ export function UnpinnedPrompt({
       <div
         className={cn(
           "pointer-events-auto w-[min(720px,92%)]",
-          "bg-warn-soft/75 backdrop-blur-sm",
-          "border border-warn/40 rounded-2xl",
-          "shadow-md",
+          "bg-warn-soft border border-warn/55 rounded-2xl",
+          "shadow-lg",
           "animate-pop-in",
         )}
       >
