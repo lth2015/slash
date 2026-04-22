@@ -49,25 +49,25 @@ export function ContextBar() {
   const anyPinned = pins.some((p) => p.name);
 
   return (
-    <header className="h-16 flex items-center px-8 border-b border-border-subtle bg-surface/75 backdrop-blur-md">
-      <div className="flex items-center gap-3 select-none">
+    <header className="h-20 flex items-center px-8 border-b border-border-subtle bg-surface/75 backdrop-blur-md">
+      <div className="flex items-center gap-4 select-none">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/logo.png"
           alt="SRE Copilot"
-          className="h-12 w-auto object-contain select-none"
+          className="h-16 w-auto object-contain select-none"
           draggable={false}
         />
         <span
-          className="inline-flex items-center gap-1.5 h-5 px-2 rounded-full bg-ok-soft text-ok text-caption tracking-chip"
+          className="inline-flex items-center gap-2 h-8 px-3 rounded-full bg-ok-soft text-ok text-[13px] font-display font-semibold tracking-chip"
           title="cockpit online"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-ok" aria-hidden />
+          <span className="w-2 h-2 rounded-full bg-ok" aria-hidden />
           online
         </span>
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-2.5">
         {pins.map((p) =>
           p.name ? (
             <PinPill key={p.kind} kind={p.kind} name={p.name} tier={p.tier} />
@@ -106,16 +106,16 @@ function PinPill({
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 h-8 px-3 rounded-full font-mono text-[13px] border",
+        "inline-flex items-center gap-2 h-10 px-3.5 rounded-full font-mono text-[15px] border",
         classes.bg,
         classes.border,
         classes.text,
       )}
       title={`${KIND_LABEL[kind]} · ${name} · tier: ${tier}`}
     >
-      <Pin size={11} className={classes.icon} aria-hidden />
-      <Icon size={13} className={classes.icon} aria-hidden />
-      <span className={cn("text-caption tracking-chip uppercase opacity-75", classes.meta)}>
+      <Pin size={13} className={classes.icon} aria-hidden />
+      <Icon size={16} className={classes.icon} aria-hidden />
+      <span className={cn("text-[11px] tracking-chip uppercase opacity-75 font-semibold", classes.meta)}>
         {KIND_LABEL[kind]}
       </span>
       <span className="text-border" aria-hidden>·</span>
@@ -123,7 +123,7 @@ function PinPill({
       {tier !== "safe" && (
         <span
           className={cn(
-            "ml-0.5 text-[10px] px-1.5 h-4 rounded-full flex items-center font-semibold tracking-chip uppercase",
+            "ml-0.5 text-[11px] px-2 h-5 rounded-full flex items-center font-semibold tracking-chip uppercase",
             classes.badge,
           )}
         >
