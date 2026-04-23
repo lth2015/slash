@@ -28,6 +28,13 @@ class PendingPlan:
     before: dict | None = None
     after: dict | None = None
     reason: str = ""
+    # Planner output — human-readable narration rendered at plan time.
+    # `target` is a one-line resource ref ("deploy/web"); `steps` is the
+    # ordered sequence a reviewer will see before approving. `risk` is an
+    # ordinal derived from the manifest (danger / labels.risk).
+    target: str = ""
+    steps: list[str] = field(default_factory=list)
+    risk: str = "medium"
     # profile summary for audit
     profile_kind: str | None = None
     profile_name: str | None = None

@@ -29,6 +29,11 @@ class ApprovalItem(BaseModel):
     reason: str
     profile_kind: str | None
     profile_name: str | None
+    # Planner narration (captured at plan time; stable across a page refresh).
+    target: str = ""
+    steps: list[str] = []
+    risk: str = "medium"
+    approval_required: bool = True
 
 
 class ApprovalList(BaseModel):
@@ -77,6 +82,10 @@ def list_approvals() -> ApprovalList:
             reason=p.reason,
             profile_kind=p.profile_kind,
             profile_name=p.profile_name,
+            target=p.target,
+            steps=list(p.steps),
+            risk=p.risk,
+            approval_required=(p.mode == "write"),
         )
         for p in list_pending()
     ]

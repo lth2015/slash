@@ -159,6 +159,29 @@ def _load_one(manifest_path: Path) -> SkillSpec:
                 "spec.danger_reason required when danger: true"
             )
 
+    # Planner narration (optional per skill this phase; enforced as hard-required
+    # in a later commit once the focal write skills have it). If a skill DOES
+    # declare spec.plan.steps / spec.plan.target, validate shape here so
+    # malformed manifests fail at startup rather than at plan time.
+    plan_block = spec.get("plan")
+    if plan_block is not None:
+        if not isinstance(plan_block, dict):
+            raise RegistryError("spec.plan must be a mapping")
+        steps = plan_block.get("steps")
+        if steps is not None:
+            if not isinstance(steps, list) or not steps:
+                raise RegistryError(
+                    "spec.plan.steps must be a non-empty list of strings when set"
+                )
+            for i, s in enumerate(steps):
+                if not isinstance(s, str) or not s.strip():
+                    raise RegistryError(
+                        f"spec.plan.steps[{i}] must be a non-empty string"
+                    )
+        target_tmpl = plan_block.get("target")
+        if target_tmpl is not None and not isinstance(target_tmpl, str):
+            raise RegistryError("spec.plan.target must be a string when set")
+
     return SkillSpec(
         id=str(meta["id"]),
         namespace=namespace,

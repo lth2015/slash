@@ -60,6 +60,14 @@ class ExecuteResponse(BaseModel):
     rollback_command: str | None = None  # pre-rendered, parse-ready slash command
     before: dict | None = None
     after: dict | None = None
+    # Planner narration (write path) — rendered from spec.plan.target and
+    # spec.plan.steps at plan time. `risk` is an ordinal derived from the
+    # manifest (danger / metadata.labels.risk). `approval_required` is a
+    # redundant hint for clients: true iff mode == "write".
+    target: str | None = None
+    steps: list[str] | None = None
+    risk: str | None = None
+    approval_required: bool = False
     # Resolved profile — the ctx/profile this run will target. For danger
     # skills the Approval card requires the reviewer to type this back
     # verbatim as the confirmation token.
@@ -216,6 +224,9 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
         pf_argv = _render_preflight(manifest, ctx)
         rollback_cmd = _render_rollback(manifest, ctx, plan_before, plan_after)
         drift_info = _compute_drift(skill, ctx)
+        plan_target = _render_plan_target(manifest, ctx)
+        plan_steps = _render_plan_steps(manifest, ctx)
+        plan_risk = _derive_risk(skill, manifest)
         plan = PendingPlan(
             run_id=run_id,
             command=req.text,
@@ -237,6 +248,9 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             preflight_argv=pf_argv,
             rollback_command=rollback_cmd,
             drift=drift_info,
+            target=plan_target,
+            steps=plan_steps,
+            risk=plan_risk,
         )
         put_plan(plan)
 
@@ -267,6 +281,10 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             profile_kind=ctx.profile_kind,
             profile_name=ctx.profile_name,
             drift=drift_info,
+            target=plan_target or None,
+            steps=list(plan_steps),
+            risk=plan_risk,
+            approval_required=True,
         )
 
     # Read → run now. Built-in vs bash branch.
@@ -533,6 +551,45 @@ def _interpolate_scalar(template: str, ctx: BuildContext) -> str:
     from slash_api.runtime.builder import _interpolate  # reuse
 
     return _interpolate(template, ctx) if template else ""
+
+
+def _render_plan_target(manifest: dict, ctx: BuildContext) -> str:
+    """Render spec.plan.target — a one-line resource ref like `deploy/web`.
+    Returns "" when the manifest doesn't declare one (optional field)."""
+    tmpl = (manifest.get("spec", {}).get("plan") or {}).get("target")
+    if not isinstance(tmpl, str) or not tmpl.strip():
+        return ""
+    return _interpolate_scalar(tmpl, ctx).strip()
+
+
+def _render_plan_steps(manifest: dict, ctx: BuildContext) -> list[str]:
+    """Render spec.plan.steps. Each entry is interpolated with `${var}` and
+    `${profile.*.*}` just like argv. Loader has already enforced non-empty
+    list for write skills; we keep a defensive fallback here."""
+    raw = (manifest.get("spec", {}).get("plan") or {}).get("steps") or []
+    out: list[str] = []
+    for step in raw:
+        if not isinstance(step, str):
+            continue
+        rendered = _interpolate_scalar(step, ctx).strip()
+        if rendered:
+            out.append(rendered)
+    return out
+
+
+def _derive_risk(skill, manifest: dict) -> str:
+    """Map (danger, metadata.labels.risk) → ordinal risk string.
+       danger: true              → "high"
+       labels.risk in {low,medium,high} → as-is
+       else                        → "medium"  (safe default for writes)
+    """
+    if bool(skill.danger):
+        return "high"
+    labels = (manifest.get("metadata", {}).get("labels") or {})
+    risk = str(labels.get("risk") or "").strip().lower()
+    if risk in ("low", "medium", "high"):
+        return risk
+    return "medium"
 
 
 def _plan_text(command: str, before: dict | None, after: dict | None, manifest: dict) -> str:

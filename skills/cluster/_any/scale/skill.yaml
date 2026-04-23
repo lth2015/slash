@@ -37,6 +37,12 @@ spec:
       - "${deploy}"
 
   plan:
+    target: "deploy/${deploy}"
+    steps:
+      - "Verify kubectl context ${profile.k8s.context} is reachable"
+      - "Check deployment ${deploy} exists in ns ${ns}"
+      - "Scale deployment ${deploy} to ${replicas} replicas"
+      - "Wait for rollout status"
     argv:
       - kubectl
       - --context
