@@ -1,14 +1,14 @@
 apiVersion: slash/v1
 kind: Skill
 metadata:
-  id: cluster.node.uncordon
+  id: cluster.uncordon
   name: "Uncordon a node"
   description: "Mark a node schedulable again. Reverses cordon; pods resume landing."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 
 spec:
-  command: { namespace: cluster, target: _any, noun: [node], verb: uncordon }
+  command: { namespace: cluster, target: _any, noun: [], verb: uncordon }
   mode: write
   danger: false
   approvers: 1
@@ -50,7 +50,7 @@ spec:
       - uncordon
       - "${name}"
 
-  rollback: "/cluster ${profile.k8s.context} node cordon ${name} --reason \"rollback uncordon\""
+  rollback: "/cluster cordon ${name} --reason \"rollback uncordon\" --ctx ${profile.k8s.context}"
 
   output:
     parse: text

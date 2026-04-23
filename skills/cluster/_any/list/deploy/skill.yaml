@@ -1,14 +1,14 @@
 apiVersion: slash/v1
 kind: Skill
 metadata:
-  id: cluster.list.deploy
+  id: cluster.deploys
   name: "List Deployments"
   description: "List Deployments in --ns with replica / available counts and age."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 
 spec:
-  command: { namespace: cluster, target: _any, noun: [list], verb: deploy }
+  command: { namespace: cluster, target: _any, noun: [], verb: deploys }
   mode: read
   timeout: 20s
   profile: { kind: k8s, required: true }
@@ -37,9 +37,9 @@ spec:
     path: "items[]"
     kind: table
     row_actions:
-      - { label: "Get",             command: "/cluster get deploy ${metadata.name} --ns ${metadata.namespace}" }
-      - { label: "Scale",           command: "/cluster scale ${metadata.name} --replicas  --ns ${metadata.namespace} --reason " }
-      - { label: "Rollout restart", command: "/cluster rollout restart ${metadata.name} --ns ${metadata.namespace} --reason " }
+      - { label: "Get",     command: "/cluster get deploy ${metadata.name} --ns ${metadata.namespace}" }
+      - { label: "Scale",   command: "/cluster scale ${metadata.name} --replicas  --ns ${metadata.namespace} --reason " }
+      - { label: "Restart", command: "/cluster restart ${metadata.name} --ns ${metadata.namespace} --reason " }
     columns:
       - { key: metadata.name,                    label: "Deployment" }
       - { key: spec.replicas,                    label: "Desired" }

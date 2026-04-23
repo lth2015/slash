@@ -1,14 +1,14 @@
 apiVersion: slash/v1
 kind: Skill
 metadata:
-  id: cluster.list.svc
+  id: cluster.services
   name: "List Services"
   description: "List Services in --ns with type, cluster IP, ports, and external endpoint."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 
 spec:
-  command: { namespace: cluster, target: _any, noun: [list], verb: svc }
+  command: { namespace: cluster, target: _any, noun: [], verb: services }
   mode: read
   timeout: 20s
   profile: { kind: k8s, required: true }

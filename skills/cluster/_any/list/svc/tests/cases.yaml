@@ -1,6 +1,6 @@
 cases:
   - name: "happy path"
-    input: "/cluster list svc --ns api"
+    input: "/cluster services --ns api"
     mock:
       stdout: "happy.json"
       exit: 0

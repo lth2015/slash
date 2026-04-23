@@ -50,16 +50,44 @@ quoted_string = '"' { char | \\" } '"' ;
 | `/infra aws vm get <id> [--region <r>]` | R | `aws ec2 describe-instances --instance-ids <id> --region …` |
 | `/infra gcp vm list [--zone <z>]` | R | `gcloud compute instances list --zones <z> --format=json` |
 
-### 4.2 `/cluster <ctx>`
+### 4.2 `/cluster` — 扁平动词语法（2026-04 refactor）
+
+`/cluster` 的命令 shape 从「`<verb> <noun>`」**重构为单动词**。ctx 不再是位置参数，必须来自 session pin 或 `--ctx <name>` 覆盖；所有命令对齐 kubectl。
+
+**List 类**（零或一个 flag）：
 
 | 命令 | 读/写 | bash 对应 |
 | --- | --- | --- |
-| `/cluster <ctx> list pod [--ns <n>] [--selector <k>=<v>]` | R | `kubectl --context <ctx> -n <ns> get pods -o json` |
-| `/cluster <ctx> get deploy <name> [--ns <n>]` | R | `kubectl … get deploy <name> -o json` |
-| `/cluster <ctx> logs <pod> [--ns <n>] [--since <d>]` | R | `kubectl … logs <pod> --since=<d>` |
-| `/cluster <ctx> scale <deploy> --replicas <n> --ns <n> --reason "<t>"` | **W** | `kubectl … scale deployment/<deploy> --replicas=<n>` |
-| `/cluster <ctx> rollout restart <deploy> --ns <n> --reason "<t>"` | **W** | `kubectl … rollout restart deploy/<deploy>` |
-| `/cluster <ctx> top pod [--ns <n>]` | R | `kubectl … top pod -o json`（数据驱动折线图 Result 卡） |
+| `/cluster pods [--ns <n>] [--selector <k>=<v>]` | R | `kubectl -n <ns> get pods -o json` |
+| `/cluster deploys [--ns <n>] [--selector <k>=<v>]` | R | `kubectl -n <ns> get deployments -o json` |
+| `/cluster services [--ns <n>]` | R | `kubectl -n <ns> get services -o json` |
+| `/cluster events [--ns <n>]` | R | `kubectl get events --sort-by=.lastTimestamp -o json` |
+| `/cluster nodes` | R | `kubectl get nodes -o json` |
+| `/cluster top [--ns <n>]` | R | `kubectl top pod --no-headers`（CPU/Memory） |
+
+**Single-resource read**：
+
+| 命令 | 读/写 | bash 对应 |
+| --- | --- | --- |
+| `/cluster describe <pod> --ns <n>` | R | `kubectl -n <ns> describe pod <pod>` |
+| `/cluster logs <pod> --ns <n> [--since <d>]` | R | `kubectl -n <ns> logs <pod> --since=<d>` |
+| `/cluster get deploy <name> --ns <n>` | R | `kubectl -n <ns> get deploy <name> -o json`（保留 2-token 形态） |
+| `/cluster get svc <name> --ns <n>` | R | `kubectl -n <ns> get svc <name> -o json`（保留） |
+| `/cluster node describe <name>` | R | `kubectl describe node <name>`（保留） |
+| `/cluster diagnose <pod> --ns <n>` | R | aggregate: describe + events + logs → LLM explain |
+
+**Write（HITL）**：
+
+| 命令 | 读/写 | bash 对应 |
+| --- | --- | --- |
+| `/cluster scale <deploy> --replicas <n> --ns <n> --reason "<t>"` | **W** | `kubectl -n <ns> scale deployment/<deploy> --replicas=<n>` |
+| `/cluster restart <deploy> --ns <n> --reason "<t>"` | **W** | `kubectl -n <ns> rollout restart deployment/<deploy>` |
+| `/cluster delete <pod> --ns <n> --reason "<t>" [--grace-period <n>]` | **W · danger** | `kubectl -n <ns> delete pod <pod>` |
+| `/cluster cordon <node> --reason "<t>"` | **W** | `kubectl cordon <node>` |
+| `/cluster uncordon <node> --reason "<t>"` | **W** | `kubectl uncordon <node>` |
+| `/cluster drain <node> --reason "<t>" [--force] [--grace-period <n>]` | **W · danger** | `kubectl drain <node> --ignore-daemonsets` |
+
+Ctx 解析：每条命令都接受可选 `--ctx <name>` 覆盖，否则读 session pin（`/ctx pin k8s <name>`）。parser 在执行前做严格检查，未配 ctx 直接 `MissingContext`。
 
 ### 4.3 `/ops`
 

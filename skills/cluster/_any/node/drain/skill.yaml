@@ -1,14 +1,14 @@
 apiVersion: slash/v1
 kind: Skill
 metadata:
-  id: cluster.node.drain
+  id: cluster.drain
   name: "Drain a node"
   description: "Cordon a node, then evict all non-daemonset pods. Waits for graceful termination."
   version: 0.1.0
   labels: { stability: beta, risk: high }
 
 spec:
-  command: { namespace: cluster, target: _any, noun: [node], verb: drain }
+  command: { namespace: cluster, target: _any, noun: [], verb: drain }
   mode: write
   danger: true
   danger_reason: |
@@ -47,7 +47,7 @@ spec:
       - when: force
         as: ["--force"]
 
-  rollback: "/cluster ${profile.k8s.context} node uncordon ${name} --reason \"rollback drain\""
+  rollback: "/cluster uncordon ${name} --reason \"rollback drain\" --ctx ${profile.k8s.context}"
 
   output:
     parse: text

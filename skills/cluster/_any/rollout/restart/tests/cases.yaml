@@ -1,6 +1,6 @@
 cases:
   - name: "plan staged"
-    input: "/cluster rollout restart web --ns api --reason \"pod memory leak\""
+    input: "/cluster restart web --ns api --reason \"pod memory leak\""
     expect:
       state: "awaiting_approval"
       danger: false

@@ -1,14 +1,14 @@
 apiVersion: slash/v1
 kind: Skill
 metadata:
-  id: cluster.node.list
+  id: cluster.nodes
   name: "List cluster nodes"
   description: "List all nodes with role, status, version, and age."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 
 spec:
-  command: { namespace: cluster, target: _any, noun: [node], verb: list }
+  command: { namespace: cluster, target: _any, noun: [], verb: nodes }
   mode: read
   timeout: 20s
   profile: { kind: k8s, required: true }
@@ -31,9 +31,9 @@ spec:
     kind: table
     row_actions:
       - { label: "Describe", command: "/cluster node describe ${metadata.name}" }
-      - { label: "Cordon",   command: "/cluster node cordon ${metadata.name} --reason " }
-      - { label: "Uncordon", command: "/cluster node uncordon ${metadata.name} --reason " }
-      - { label: "Drain",    command: "/cluster node drain ${metadata.name} --reason " }
+      - { label: "Cordon",   command: "/cluster cordon ${metadata.name} --reason " }
+      - { label: "Uncordon", command: "/cluster uncordon ${metadata.name} --reason " }
+      - { label: "Drain",    command: "/cluster drain ${metadata.name} --reason " }
     columns:
       - { key: metadata.name,                     label: "Node" }
       - { key: status.conditions,                 label: "Ready",   renderer: state-badge }

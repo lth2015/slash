@@ -1,14 +1,14 @@
 apiVersion: slash/v1
 kind: Skill
 metadata:
-  id: cluster.top.pod
+  id: cluster.top
   name: "Pod resource usage"
   description: "Show CPU and memory per pod (requires metrics-server). Optional --ns narrows scope."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 
 spec:
-  command: { namespace: cluster, target: _any, noun: [top], verb: pod }
+  command: { namespace: cluster, target: _any, noun: [], verb: top }
   mode: read
   timeout: 15s
   profile: { kind: k8s, required: true }

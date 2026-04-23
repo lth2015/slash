@@ -1,14 +1,14 @@
 apiVersion: slash/v1
 kind: Skill
 metadata:
-  id: cluster.list.pod
-  name: "List pods in a namespace"
+  id: cluster.pods
+  name: "List pods"
   description: "List pods in --ns with phase, node, IP, and create time. Optional --selector applies label matching."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 
 spec:
-  command: { namespace: cluster, target: _any, noun: [list], verb: pod }
+  command: { namespace: cluster, target: _any, noun: [], verb: pods }
   mode: read
   timeout: 20s
   profile: { kind: k8s, required: true }
@@ -37,9 +37,9 @@ spec:
     path: "items[]"
     kind: table
     row_actions:
-      - { label: "Describe",   command: "/cluster describe pod ${metadata.name} --ns ${metadata.namespace}" }
+      - { label: "Describe",   command: "/cluster describe ${metadata.name} --ns ${metadata.namespace}" }
       - { label: "Logs · 30m", command: "/cluster logs ${metadata.name} --ns ${metadata.namespace} --since 30m" }
-      - { label: "Delete",     command: "/cluster delete pod ${metadata.name} --ns ${metadata.namespace} --reason " }
+      - { label: "Delete",     command: "/cluster delete ${metadata.name} --ns ${metadata.namespace} --reason " }
     columns:
       - { key: metadata.name,           label: "Pod" }
       - { key: status.phase,            label: "Phase", renderer: state-badge }

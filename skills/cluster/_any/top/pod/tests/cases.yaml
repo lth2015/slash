@@ -1,6 +1,6 @@
 cases:
   - name: "happy path"
-    input: "/cluster top pod --ns api"
+    input: "/cluster top --ns api"
     mock:
       stdout: "happy.txt"
       exit: 0

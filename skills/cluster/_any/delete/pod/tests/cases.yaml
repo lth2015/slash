@@ -1,6 +1,6 @@
 cases:
   - name: "danger plan staged"
-    input: "/cluster delete pod web-abc --ns api --reason cleanup"
+    input: "/cluster delete web-abc --ns api --reason cleanup"
     expect:
       state: "awaiting_approval"
       danger: true

@@ -1,6 +1,6 @@
 cases:
   - name: "plan staged with unschedulable=false captured"
-    input: "/cluster node cordon ip-10-0-0-1 --reason maintenance"
+    input: "/cluster cordon ip-10-0-0-1 --reason maintenance"
     mock:
       stdout: "unschedulable-false.txt"
       exit: 0

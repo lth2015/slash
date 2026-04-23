@@ -70,7 +70,7 @@ spec:
       - "--replicas=${replicas}"
 
   rollback: |
-    /cluster ${profile.k8s.context} scale ${deploy} --replicas ${before} --ns ${ns} --reason "rollback"
+    /cluster scale ${deploy} --replicas ${before} --ns ${ns} --reason "rollback" --ctx ${profile.k8s.context}
 
   output:
     parse: text

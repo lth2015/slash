@@ -1,14 +1,14 @@
 apiVersion: slash/v1
 kind: Skill
 metadata:
-  id: cluster.rollout.restart
+  id: cluster.restart
   name: "Restart a Deployment"
   description: "Trigger a rolling restart by patching pod-template annotations. Pods cycle one-by-one."
   version: 0.1.0
   labels: { stability: beta, risk: medium }
 
 spec:
-  command: { namespace: cluster, target: _any, noun: [rollout], verb: restart }
+  command: { namespace: cluster, target: _any, noun: [], verb: restart }
   mode: write
   danger: false
   approvers: 1

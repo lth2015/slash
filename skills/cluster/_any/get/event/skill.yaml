@@ -1,14 +1,14 @@
 apiVersion: slash/v1
 kind: Skill
 metadata:
-  id: cluster.get.event
+  id: cluster.events
   name: "Recent cluster events"
   description: "Sorted by last-timestamp. Shows warnings and errors from recent minutes."
   version: 0.1.0
   labels: { stability: beta, risk: low }
 
 spec:
-  command: { namespace: cluster, target: _any, noun: [get], verb: event }
+  command: { namespace: cluster, target: _any, noun: [], verb: events }
   mode: read
   timeout: 20s
   profile: { kind: k8s, required: true }

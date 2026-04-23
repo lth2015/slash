@@ -1,10 +1,10 @@
 cases:
   - name: "happy path"
-    input: "/cluster describe pod web-59d8c-abc --ns api"
+    input: "/cluster describe web-59d8c-abc --ns api"
     mock:
       stdout: "happy.txt"
       exit: 0
     expect:
       state: "ok"
       body_equals:
-        skill_id: "cluster.describe.pod"
+        skill_id: "cluster.describe"

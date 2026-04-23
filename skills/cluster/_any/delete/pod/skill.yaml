@@ -1,14 +1,14 @@
 apiVersion: slash/v1
 kind: Skill
 metadata:
-  id: cluster.delete.pod
+  id: cluster.delete
   name: "Delete a pod"
   description: "Delete a pod by name. Controller-managed pods will be recreated."
   version: 0.1.0
   labels: { stability: beta, risk: high }
 
 spec:
-  command: { namespace: cluster, target: _any, noun: [delete], verb: pod }
+  command: { namespace: cluster, target: _any, noun: [], verb: delete }
   mode: write
   danger: true
   danger_reason: |

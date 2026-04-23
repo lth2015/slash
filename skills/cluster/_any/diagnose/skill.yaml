@@ -25,11 +25,11 @@ spec:
   builtin_config:
     steps:
       - id: pod_state
-        run: "/cluster ${profile.k8s.context} describe pod ${pod} --ns ${ns}"
+        run: "/cluster describe ${pod} --ns ${ns} --ctx ${profile.k8s.context}"
       - id: events
-        run: "/cluster ${profile.k8s.context} get event --ns ${ns}"
+        run: "/cluster events --ns ${ns} --ctx ${profile.k8s.context}"
       - id: logs_last_30m
-        run: "/cluster ${profile.k8s.context} logs ${pod} --ns ${ns} --since 30m"
+        run: "/cluster logs ${pod} --ns ${ns} --since 30m --ctx ${profile.k8s.context}"
 
   output:
     kind: object

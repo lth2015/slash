@@ -1,6 +1,6 @@
 cases:
   - name: "danger plan staged"
-    input: "/cluster node drain ip-10-0-0-1 --reason \"kernel upgrade\""
+    input: "/cluster drain ip-10-0-0-1 --reason \"kernel upgrade\""
     expect:
       state: "awaiting_approval"
       danger: true

@@ -75,10 +75,10 @@ SKILLS: list[SkillSpec] = [
         mode="write",
     ),
     _s(
-        "cluster.rollout.restart",
+        "cluster.restart",
         "cluster",
         None,
-        ("rollout",),
+        (),
         "restart",
         (
             ArgSpec("deploy", None, "string", required=True, positional=True),
@@ -203,10 +203,28 @@ def test_parses_cluster_without_ctx_relies_on_pin() -> None:
     assert ast.overrides == {}
 
 
-def test_parses_cluster_with_compound_noun() -> None:
-    ast = parse("/cluster rollout restart web --ns api", registry)
-    assert ast.skill_id == "cluster.rollout.restart"
+def test_parses_cluster_flat_verb() -> None:
+    # Post-refactor, /cluster commands are flat (noun=[], verb=<action>).
+    # The parser should match the one-token verb directly without requiring
+    # a noun chain.
+    ast = parse("/cluster restart web --ns api", registry)
+    assert ast.skill_id == "cluster.restart"
+    assert ast.verb == "restart"
+    assert ast.noun == []
     assert ast.positional == ["web"]
+
+
+def test_parses_cluster_compound_noun_still_works() -> None:
+    # `app.config.update` is a 3-token command path — prove the parser still
+    # does longest-prefix matching for genuinely compound commands even after
+    # the cluster flattening.
+    ast = parse(
+        '/app config update checkout --env staging --file "./cfg.yaml"',
+        registry,
+    )
+    assert ast.skill_id == "app.config.update"
+    assert ast.noun == ["config"]
+    assert ast.verb == "update"
 
 
 def test_parses_app_no_target() -> None:

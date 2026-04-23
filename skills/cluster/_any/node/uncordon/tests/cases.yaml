@@ -1,6 +1,6 @@
 cases:
   - name: "plan staged with unschedulable=true captured"
-    input: "/cluster node uncordon ip-10-0-0-1 --reason \"back in rotation\""
+    input: "/cluster uncordon ip-10-0-0-1 --reason \"back in rotation\""
     mock:
       stdout: "unschedulable-true.txt"
       exit: 0
