@@ -56,24 +56,25 @@ sre-unified command set
 │   ├── /cluster <context> predict <metric>
 │   └── /cluster <context> optimize <deploy>
 │
-├── /app：应用管理
-│   ├── /app list
-│   ├── /app get <app-name>
-│   ├── /app pipeline run <job>
-│   ├── /app pipeline list
-│   ├── /app pipeline describe <job>
-│   ├── /app pipeline stop <job>
-│   ├── /app pipeline delete <job>
-│   ├── /app pipeline trace <job>
-│   ├── /app ship <app-name> --tag <version> --env <env>
-│   ├── /app rollback <app-name> --env <env>
-│   ├── /app canary <app-name> --env <env> --weight <weight>
-│   ├── /app diagnose <app-name> --env <env>
-│   ├── /app predict <app-name> --env <env>
-│   ├── /app optimize <app-name> --env <env>
-│   ├── /app config get <app-name> --env <env>
-│   ├── /app config update <app-name> --config <configs> --env <env>
-│   └── /app config diff <app-name> --env <env>
+├── /app：应用管理 — 本阶段只做原子动作，编排层延后
+│   │   权威清单见 docs/02-commands.md §4.4；`DEFER` = 编排抽象层，本阶段不做
+│   ├── /app list                                                   # atomic · 单调用 (helm list / argocd app list / 本地注册表)
+│   ├── /app get  `<app-name>`                                      # atomic
+│   ├── /app config get    `<app>` --env `<env>`                    # atomic · kubectl get configmap
+│   ├── /app config diff   `<app>` --env `<env>`                    # atomic · kubectl diff
+│   ├── /app config update `<app>` --env `<env>` --file `<path>`    # atomic WRITE · kubectl apply + HITL
+│   ├── /app rollback      `<app>` --env `<env>` --reason "t"       # atomic WRITE · kubectl rollout undo + HITL · danger
+│   ├── /app pipeline list  --env `<env>` (可选)                    # atomic · gh run list / glab ci list
+│   ├── /app pipeline describe `<job>`                              # atomic
+│   ├── /app pipeline trace    `<job>`                              # atomic · fetch job logs
+│   ├── /app pipeline stop     `<job>` --reason "t"                 # atomic WRITE + HITL
+│   ├── `DEFER` /app pipeline run    `<job>`                        # orchestration trigger（包了一层 CI 的 workflow）
+│   ├── `DEFER` /app pipeline delete `<job>`                        # 低频，先不做
+│   ├── `DEFER` /app ship      `<app>` --tag `<v>` --env `<env>`    # compound: build + push + deploy
+│   ├── `DEFER` /app canary    `<app>` --env `<env>` --weight `<w>` # 需要 flagger / argo rollouts 控制器
+│   ├── `DEFER` /app diagnose  `<app>` --env `<env>`                # compound + LLM 分析（后续单独提案）
+│   ├── `DEFER` /app predict   `<app>` --env `<env>`                # ML 预测层
+│   └── `DEFER` /app optimize  `<app>` --env `<env>`                # 推荐引擎
 │
 └── /ops：运维操作
     ├── /ops alert list

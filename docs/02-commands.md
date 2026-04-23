@@ -70,6 +70,38 @@ quoted_string = '"' { char | \\" } '"' ;
 
 > `/ops diagnose` 的"LLM 分析"仅解读数据，不会触发任何写操作。
 
+### 4.4 `/app`（原子集合 · 尚未实现，等选定后端 CLI）
+
+本阶段只做**原子动作**——每条命令一次后端 CLI 调用。以下只列原子；编排层（`ship`/`canary`/`pipeline run`/`predict`/`optimize`/`diagnose`）都不在本阶段，见 `Draft.md` 的 `DEFER` 标注。
+
+| 命令 | 读/写 | 可能的 bash 对应（待敲定） |
+| --- | --- | --- |
+| `/app list` | R | `helm list -A -o json` · 或 `argocd app list -o json` · 或读本地应用登记表 |
+| `/app get <name>` | R | 同上，单个 |
+| `/app config get <name> --env <env>` | R | `kubectl --context <env> -n <ns> get configmap <name> -o json` |
+| `/app config diff <name> --env <env> --file <path>` | R | `kubectl --context <env> diff -f <path>` |
+| `/app config update <name> --env <env> --file <path> --reason "<t>"` | **W** | `kubectl --context <env> apply -f <path>` |
+| `/app rollback <name> --env <env> --reason "<t>"` | **W (danger)** | `kubectl --context <env> -n <ns> rollout undo deployment/<name>` |
+| `/app pipeline list [--env <env>]` | R | `gh run list --workflow <app>.yml` · 或 `glab ci list` |
+| `/app pipeline describe <job>` | R | `gh run view <job> --json ...` |
+| `/app pipeline trace <job>` | R | `gh run view <job> --log` |
+| `/app pipeline stop <job> --reason "<t>"` | **W** | `gh run cancel <job>` |
+
+> 后端 CLI 选型未定：kubectl / helm / argocd / gh / glab 各有场景。下一步需选定主线后端再落 skill YAML。
+
+### 4.5 `/ctx`（会话上下文 · 内建 skill，已实现）
+
+不走外部 CLI，读/写 `var/state.json` 里的 pin 状态，供 `/cluster`、`/infra aws`、`/infra gcp` 的严格 ctx 校验使用。
+
+| 命令 | 读/写 | 作用 |
+| --- | --- | --- |
+| `/ctx list` | R | 列出可选 AWS profile / GCP configuration / kubeconfig context |
+| `/ctx show` | R | 显示当前 pin（含 tier：critical / staging / safe） |
+| `/ctx pin <kind> <name> --tier <tier>` | W | 把 `kind ∈ {k8s, aws, gcp}` pin 到 `name` |
+| `/ctx unpin <kind>` | W | 清除该 kind 的 pin |
+
+> pin 不经审批（纯会话态，不涉及外部写操作），但会被写入 `audit.jsonl`。写类命令落地前会做 drift guard：若 pin 在最近 60s 内改过，会提示二次确认。
+
 ## 5. 通用 Flag
 
 | Flag | 说明 |
