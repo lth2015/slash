@@ -54,6 +54,10 @@ class ExecuteResponse(BaseModel):
     duration_ms: int | None = None
     exit_code: int | None = None
     output_spec: dict | None = None
+    # ISO-8601 UTC timestamps bracketing the subprocess; populated for read
+    # runs and for write runs that are approved + executed via /approvals.
+    started_at: str | None = None
+    ended_at: str | None = None
     # plan fields (write path)
     plan_text: str | None = None
     rollback_hint: str | None = None
@@ -362,6 +366,8 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
         "state": state,
         "exit_code": result.exit_code,
         "duration_ms": result.duration_ms,
+        "started_at": result.started_at,
+        "ended_at": result.ended_at,
         "profile": {"kind": ctx.profile_kind, "name": ctx.profile_name},
         "stdout": result.stdout,
         "stderr": result.stderr,
@@ -383,6 +389,8 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
         output_spec=output_spec,
         error_code=err_code,
         error_message=err_msg,
+        started_at=result.started_at or None,
+        ended_at=result.ended_at or None,
     )
 
 

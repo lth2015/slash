@@ -13,7 +13,13 @@ import os
 import subprocess
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+
+
+def _iso_utc_now() -> str:
+    """ISO-8601 UTC timestamp with millisecond precision (Z suffix)."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
 @dataclass
@@ -24,6 +30,11 @@ class RunResult:
     duration_ms: int
     timed_out: bool
     argv: list[str]
+    # Wall-clock ISO-8601 UTC timestamps bracketing the subprocess. Used by the
+    # audit trail and the UI's run-timeline to plot "running" duration. Set by
+    # `execute()` itself — callers MUST NOT synthesize these.
+    started_at: str = ""
+    ended_at: str = ""
 
 
 def execute(
@@ -31,14 +42,26 @@ def execute(
     env: dict[str, str],
     timeout_s: float,
 ) -> RunResult:
-    """Run argv synchronously. Returns RunResult (never raises on non-zero).
+    """THE single local runner entry. All skill execution — read and write,
+    every namespace — funnels through this function. Never raises on non-zero.
 
-    Harness hooks (used only when the caller explicitly sets env vars):
+    Hard contract (docs/03 §2.4, docs/05 §T1):
+    - `argv` MUST be a list of already-validated strings. Each element lands
+      as-is in `argv[]` of the child process. No string is ever handed to
+      `sh -c`, and `subprocess.run(..., shell=False)` is explicit below.
+    - Raw user input never reaches this function: the parser + skill's
+      `bash.argv` template (see runtime/builder.py) are the only argv source.
+    - `env` is the already-merged env dict (profile envs + SLASH_* overrides).
+    - Returns a uniform RunResult (stdout, stderr, exit_code, started_at,
+      ended_at, duration_ms, timed_out). Callers derive state from there.
+
+    Harness hooks (opt-in via env vars set by the caller):
       SLASH_MOCK_STDOUT_PATH — path to a file; its contents become stdout
       SLASH_MOCK_EXIT       — override exit code
       SLASH_MOCK_STDERR     — literal stderr
       SLASH_MOCK_LATENCY_MS — sleep this many ms before "completing"
     """
+    started_at = _iso_utc_now()
     mock_path = env.get("SLASH_MOCK_STDOUT_PATH") or os.environ.get("SLASH_MOCK_STDOUT_PATH")
     if mock_path:
         stdout = Path(mock_path).read_text()
@@ -60,6 +83,8 @@ def execute(
             duration_ms=latency_ms,
             timed_out=timed_out,
             argv=argv,
+            started_at=started_at,
+            ended_at=_iso_utc_now(),
         )
 
     t0 = time.monotonic()
@@ -81,6 +106,8 @@ def execute(
             duration_ms=duration_ms,
             timed_out=False,
             argv=argv,
+            started_at=started_at,
+            ended_at=_iso_utc_now(),
         )
     except subprocess.TimeoutExpired as exc:
         duration_ms = int((time.monotonic() - t0) * 1000)
@@ -91,6 +118,8 @@ def execute(
             duration_ms=duration_ms,
             timed_out=True,
             argv=argv,
+            started_at=started_at,
+            ended_at=_iso_utc_now(),
         )
     except FileNotFoundError as exc:
         return RunResult(
@@ -100,4 +129,6 @@ def execute(
             duration_ms=0,
             timed_out=False,
             argv=argv,
+            started_at=started_at,
+            ended_at=_iso_utc_now(),
         )

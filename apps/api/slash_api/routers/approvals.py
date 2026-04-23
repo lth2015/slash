@@ -59,6 +59,9 @@ class DecisionResponse(BaseModel):
     error_code: str | None = None
     error_message: str | None = None
     output_spec: dict | None = None
+    # ISO-8601 UTC timestamps of the subprocess, if it ran (approve path).
+    started_at: str | None = None
+    ended_at: str | None = None
     # Present only on state=ok for a write skill that declared an executable
     # spec.rollback. Client can wire a "Roll back" button that pre-fills the
     # CommandBar with this string; the rollback still goes through /execute +
@@ -204,6 +207,8 @@ def decide_approval(
         "profile": {"kind": plan.profile_kind, "name": plan.profile_name},
         "exit_code": result.exit_code,
         "duration_ms": result.duration_ms,
+        "started_at": result.started_at,
+        "ended_at": result.ended_at,
         "stdout": result.stdout,
         "stderr": result.stderr,
         "summary": err_msg or "applied",
@@ -228,6 +233,8 @@ def decide_approval(
         error_message=err_msg,
         output_spec=plan.output_spec,
         rollback_command=(plan.rollback_command or None) if state == "ok" else None,
+        started_at=result.started_at or None,
+        ended_at=result.ended_at or None,
     )
 
 
