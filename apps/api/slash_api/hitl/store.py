@@ -52,6 +52,12 @@ class PendingPlan:
     output_spec: dict = field(default_factory=dict)
     # Pre-rendered preflight argv (run immediately before bash.argv on approve).
     preflight_argv: list[str] = field(default_factory=list)
+    # Pre-rendered server-side dry-run argv. Runs between preflight and the
+    # real apply at approve-time; non-zero exit aborts without calling the
+    # mutation. `dryrun_success_codes` overrides the exit predicate (default
+    # [0]; e.g. aws's --dry-run returns 255 on accepted dry-run).
+    dryrun_argv: list[str] = field(default_factory=list)
+    dryrun_success_codes: list[int] = field(default_factory=lambda: [0])
     # Pre-rendered rollback slash command (empty string if no automatic rollback).
     # Only populated for write skills whose spec.rollback renders to a "/"-prefixed
     # command with all placeholders resolved at plan time.

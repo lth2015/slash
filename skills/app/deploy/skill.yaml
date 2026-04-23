@@ -39,6 +39,23 @@ spec:
       - deployment
       - "${name}"
 
+  dryrun:
+    # Server-side dry-run of the mutation (set image). Catches
+    # container-name typos, image-pull policy blocks, admission-webhook
+    # rejections before the real rollout begins. rollout-status (step 2)
+    # is read-only so no dry-run there.
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - set
+      - image
+      - "deployment/${name}"
+      - "${container}=${image}"
+      - --dry-run=server
+
   plan:
     # Capture the current image reference so the PlanCard's before/after diff
     # shows precisely what's changing. jsonpath returns just the image string.

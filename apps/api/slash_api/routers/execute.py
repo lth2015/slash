@@ -271,6 +271,7 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
         argv = argv_steps[0][1] if argv_steps else build_argv(manifest, ctx)
         plan_before, plan_after = _render_plan(manifest, ctx, env_update, timeout_s)
         pf_argv = _render_preflight(manifest, ctx)
+        dryrun_argv, dryrun_ok_codes = _render_dryrun(manifest, ctx)
         rollback_cmd = _render_rollback(manifest, ctx, plan_before, plan_after)
         drift_info = _compute_drift(skill, ctx)
         plan_target = _render_plan_target(manifest, ctx)
@@ -310,6 +311,8 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             risk=plan_risk,
             parsed_command=parsed,
             argv_steps=argv_steps if len(argv_steps) > 1 else [],
+            dryrun_argv=dryrun_argv,
+            dryrun_success_codes=dryrun_ok_codes,
         )
         put_plan(plan)
 
@@ -556,6 +559,21 @@ def _render_preflight(manifest: dict, ctx: BuildContext) -> list[str]:
     from slash_api.runtime.builder import _interpolate
 
     return [_interpolate(el, ctx) if isinstance(el, str) else str(el) for el in argv_tmpl]
+
+
+def _render_dryrun(manifest: dict, ctx: BuildContext) -> tuple[list[str], list[int]]:
+    """Interpolate spec.dryrun.argv and resolve its success-exit predicate.
+    Returns ([], [0]) when the manifest doesn't declare a dry-run — callers
+    can check `bool(argv)` to decide whether to run the guard."""
+    dr = (manifest.get("spec", {}).get("dryrun") or {})
+    argv_tmpl = dr.get("argv")
+    if not isinstance(argv_tmpl, list) or not argv_tmpl:
+        return [], [0]
+    from slash_api.runtime.builder import _interpolate
+
+    rendered = [_interpolate(el, ctx) if isinstance(el, str) else str(el) for el in argv_tmpl]
+    codes = dr.get("success_exit_codes") or [0]
+    return rendered, list(codes)
 
 
 def _run_preflight(manifest: dict, ctx: BuildContext, env: dict[str, str], timeout_s: float) -> str | None:

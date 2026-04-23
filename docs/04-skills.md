@@ -93,6 +93,27 @@ spec:
       AWS_PROFILE: "${profile.aws}"      # injected by runtime
     timeout: 30s
 
+  # ---- server-side dry-run (optional, write skills) ----
+  #
+  # An extra approve-time guard that asks the backing CLI's API server to
+  # validate the intended mutation WITHOUT applying it. Runs after
+  # preflight, before the real bash.argv / bash.steps. Non-success exit →
+  # DryRunFailed, mutation never attempted. See docs/05 §2 T2.
+  #
+  # Example (/cluster scale):
+  #   dryrun:
+  #     argv: [kubectl, ..., scale, "deployment/${deploy}",
+  #            "--replicas=${replicas}", "--dry-run=server"]
+  #
+  # For CLIs whose dry-run returns a non-zero "would have succeeded" code
+  # (aws ec2 --dry-run → 255), override the success predicate:
+  #   dryrun:
+  #     argv: [aws, ec2, start-instances, --instance-ids, "${id}", --dry-run]
+  #     success_exit_codes: [255]
+  #
+  # Absence of spec.dryrun keeps the previous behavior (preflight + HITL
+  # are still in effect) — loader treats it as optional.
+
   # ---- multi-step writes: bash.steps (alternative to bash.argv) ----
   #
   # Some writes take more than one CLI call — e.g. /app deploy is:

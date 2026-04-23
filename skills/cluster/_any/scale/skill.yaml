@@ -36,6 +36,21 @@ spec:
       - deployment
       - "${deploy}"
 
+  dryrun:
+    # Server-side dry-run: ask the API server if it would accept this scale.
+    # Catches admission-webhook rejections (HPA conflicts, quota breaches,
+    # policy blocks) BEFORE a real mutation is recorded anywhere.
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - scale
+      - "deployment/${deploy}"
+      - "--replicas=${replicas}"
+      - --dry-run=server
+
   plan:
     target: "deploy/${deploy}"
     steps:

@@ -9,6 +9,19 @@
 | T3 | **LLM 欺骗**：生成"已执行"的假结果 / 建议绕过审批 / 把 summary 写成命令 | 见 §3 |
 | T4 | 审计抵赖 / 遗漏 | 所有 Turn 追加 `.slash/audit/audit.jsonl`；哈希记录 stdout 指纹 |
 
+## 1.1 Write skill 的 4 层预执行护栏
+
+写操作进 HITL 审批前后，依序经过 4 道闸门。任一层失败即 abort，后续层不再触发：
+
+| 层 | 什么时候跑 | 作用 | 谁在用 |
+|---|---|---|---|
+| **preflight** (`spec.preflight.argv`) | approve 时（/execute 读时也跑一遍做快速失败） | 只读探活：`kubectl get <resource>`、`aws describe-*` 等。资源没了、凭据失效就 block | 16/16 write skill |
+| **plan.argv** (`spec.plan.argv` + `spec.plan.diff`) | stage 时（`/execute`） | 抓当前状态渲染 before/after diff。纯只读快照，供 reviewer 看清楚要改什么 | 8/16（scale / cordon / uncordon / vm start/stop/resize / app deploy） |
+| **HITL 审批闸门** | approve 之前 | `PendingPlan` 在 `approval_state=pending` 时**永不 spawn 子进程**。danger skill 再叠"打环境名解锁"confirm | 16/16 |
+| **dry-run** (`spec.dryrun.argv`) | approve 时，**preflight 后、apply 前** | CLI 原生 server-side dry-run（`kubectl --dry-run=server`、`aws --dry-run`）。admission-webhook 拒、quota 不足、policy 拦都能在这里先现形。非 `success_exit_codes` 即 `DryRunFailed`，apply 永不触发 | 3/16（cluster.scale / cluster.delete / app.deploy；其他按需增加） |
+
+后 3 层都有独立 audit 记录（state=ok / error）+ `execution_argv` + ISO 时间戳，便于事后排查"失败在哪一层"。
+
 ## 2. HITL（Human-in-the-Loop）
 
 ### 2.1 规则

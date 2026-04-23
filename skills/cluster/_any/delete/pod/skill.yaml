@@ -35,6 +35,21 @@ spec:
       - pod
       - "${name}"
 
+  dryrun:
+    # Server-side dry-run — catches admission-webhook / finalizer blocks
+    # before the real delete is issued.
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - delete
+      - pod
+      - "${name}"
+      - "--grace-period=${grace}"
+      - --dry-run=server
+
   bash:
     argv:
       - kubectl

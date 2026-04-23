@@ -182,6 +182,32 @@ def _load_one(manifest_path: Path) -> SkillSpec:
         if target_tmpl is not None and not isinstance(target_tmpl, str):
             raise RegistryError("spec.plan.target must be a string when set")
 
+    # Optional server-side dry-run guard for write skills. If declared, the
+    # approve path runs this argv BEFORE the real apply; non-success exit aborts
+    # without calling bash.argv / bash.steps. Shape:
+    #   spec:
+    #     dryrun:
+    #       argv: [kubectl, ..., --dry-run=server]
+    #       success_exit_codes: [0]      # default [0]; aws returns 255 on dry-run ok
+    dryrun_block = spec.get("dryrun")
+    if dryrun_block is not None:
+        if not isinstance(dryrun_block, dict):
+            raise RegistryError("spec.dryrun must be a mapping")
+        dr_argv = dryrun_block.get("argv")
+        if not isinstance(dr_argv, list) or not dr_argv:
+            raise RegistryError(
+                "spec.dryrun.argv must be a non-empty list of strings"
+            )
+        for i, el in enumerate(dr_argv):
+            if not isinstance(el, str):
+                raise RegistryError(f"spec.dryrun.argv[{i}] must be a string")
+        codes = dryrun_block.get("success_exit_codes")
+        if codes is not None:
+            if not isinstance(codes, list) or not all(isinstance(x, int) for x in codes):
+                raise RegistryError(
+                    "spec.dryrun.success_exit_codes must be a list of ints"
+                )
+
     # Exactly one of {bash.argv, bash.steps, builtin} must be present.
     # - bash.argv   : single subprocess invocation (the common form)
     # - bash.steps  : sequential multi-step write (e.g. /app deploy)

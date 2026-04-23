@@ -199,6 +199,94 @@ def test_approvals_list_shows_pending_state(client):
 
 # ── Multi-step writes (/app deploy) ─────────────────────────────────────
 
+# ── Server-side dry-run guard (spec.dryrun) ────────────────────────────
+
+def test_dryrun_success_allows_apply(client):
+    """Happy path: spec.dryrun.argv runs at approve time, exits 0, the real
+    command runs after. We use the existing SLASH_MOCK_EXIT=0 fixture so all
+    subprocess calls (preflight, dry-run, apply) succeed uniformly."""
+    tc, _ = client if isinstance(client, tuple) else (client, None)  # type: ignore[assignment]
+    stage = tc.post(
+        "/execute",
+        json={"text": "/cluster scale web --replicas 3 --ns api --reason test"},
+    ).json()
+    run_id = stage["run_id"]
+
+    r = tc.post(
+        f"/approvals/{run_id}/decide",
+        json={"decision": "approve"},
+        headers={"X-Slash-Actor": "human-alice"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["state"] == "ok"
+    assert body["decision"] == "approve"
+    # If dry-run had failed, we'd see DryRunFailed; happy path means no error.
+    assert body.get("error_code") is None
+
+
+def test_dryrun_failure_blocks_apply(monkeypatch, client):
+    """spec.dryrun.argv exit != 0 (non-success codes) → DryRunFailed, the real
+    mutation never runs. We monkeypatch the runner symbol in the approvals
+    router so the --dry-run=server argv fails while the preflight (plain
+    `kubectl get`) still passes."""
+    tc, _ = client if isinstance(client, tuple) else (client, None)  # type: ignore[assignment]
+
+    from slash_api.routers import approvals as approvals_router
+    from slash_api.runtime.executor import RunResult
+
+    real_run = approvals_router.run_bash
+
+    call_argvs: list[list[str]] = []
+
+    def selective(argv, env, timeout_s):
+        call_argvs.append(list(argv))
+        if "--dry-run=server" in argv:
+            # Synthetic admission failure
+            return RunResult(
+                exit_code=1,
+                stdout="",
+                stderr='The Deployment "web" is invalid: spec.replicas: forbidden by admission webhook',
+                duration_ms=12,
+                timed_out=False,
+                argv=argv,
+                started_at="2026-04-23T06:00:00.000Z",
+                ended_at="2026-04-23T06:00:00.012Z",
+            )
+        return real_run(argv, env, timeout_s)
+
+    monkeypatch.setattr(approvals_router, "run_bash", selective)
+
+    stage = tc.post(
+        "/execute",
+        json={"text": "/cluster scale web --replicas 3 --ns api --reason test"},
+    ).json()
+    run_id = stage["run_id"]
+
+    r = tc.post(
+        f"/approvals/{run_id}/decide",
+        json={"decision": "approve"},
+        headers={"X-Slash-Actor": "human-alice"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["state"] == "error"
+    assert body["error_code"] == "DryRunFailed"
+    assert body["decision"] == "approve"
+    assert body["approval_state"] == "approved"  # we DID decide
+    # The real scale argv must NEVER have been issued. Preflight is plain
+    # `kubectl get deployment web` (no --dry-run flag); dry-run is the
+    # `scale … --dry-run=server` argv. The actual apply (`scale …` without
+    # --dry-run=server) must not appear.
+    apply_argvs = [
+        av for av in call_argvs
+        if "scale" in av and "--dry-run=server" not in av
+    ]
+    assert apply_argvs == [], (
+        f"apply argv should not have run after dry-run failure; got {apply_argvs}"
+    )
+
+
 def test_multi_step_write_approve_returns_per_step_results(client):
     """Multi-step skills (spec.bash.steps — e.g. /app deploy) should surface
     a per_step_results breakdown on the decide-approve response. Each step

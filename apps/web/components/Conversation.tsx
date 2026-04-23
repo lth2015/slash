@@ -44,7 +44,7 @@ export function Conversation({ turns, onApproved, onRejected, onSuggestionClick 
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-5xl mx-auto px-6 pt-8 pb-3 space-y-6">
         {turns.map((turn, i) => (
           <TurnView
             key={i}

@@ -88,7 +88,7 @@ export function ContextBar({ onPickCommand }: Props = {}) {
 
 // ── PinPill ────────────────────────────────────────────────────────────
 
-const KIND_ICON: Record<ContextKind, React.ComponentType<{ size?: number; className?: string }>> = {
+const KIND_ICON: Record<ContextKind, React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>> = {
   k8s: Boxes,
   aws: Box,
   gcp: Cloud,
@@ -111,27 +111,31 @@ function PinPill({
 }) {
   const Icon = KIND_ICON[kind];
   const classes = tierClasses(tier);
+  // Long k8s context names (full EKS ARNs) would explode the topbar; trim to
+  // the tail so the identity-bearing portion (cluster name) stays visible.
+  const display = trimContextName(name);
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 h-10 px-3.5 rounded-full font-mono text-[15px] border",
+        "inline-flex items-center gap-2 h-10 px-3.5 rounded-full font-mono text-[15px]",
+        "border-2 shadow-sm",
         classes.bg,
         classes.border,
         classes.text,
       )}
       title={`${KIND_LABEL[kind]} · ${name} · tier: ${tier}`}
     >
-      <Pin size={13} className={classes.icon} aria-hidden />
-      <Icon size={16} className={classes.icon} aria-hidden />
-      <span className={cn("text-[11px] tracking-chip uppercase opacity-75 font-semibold", classes.meta)}>
+      <Pin size={14} strokeWidth={2.4} className={classes.icon} aria-hidden />
+      <Icon size={16} strokeWidth={2.2} className={classes.icon} aria-hidden />
+      <span className={cn("text-[11px] tracking-chip uppercase font-bold", classes.meta)}>
         {KIND_LABEL[kind]}
       </span>
-      <span className="text-border" aria-hidden>·</span>
-      <span className="font-semibold">{name}</span>
+      <span className={cn("h-4 w-px", classes.divider)} aria-hidden />
+      <span className="font-bold tracking-tight">{display}</span>
       {tier !== "safe" && (
         <span
           className={cn(
-            "ml-0.5 text-[11px] px-2 h-5 rounded-full flex items-center font-semibold tracking-chip uppercase",
+            "ml-0.5 text-[10px] px-2 h-5 rounded-full flex items-center font-bold tracking-chip uppercase",
             classes.badge,
           )}
         >
@@ -142,31 +146,44 @@ function PinPill({
   );
 }
 
+function trimContextName(raw: string): string {
+  // EKS ARNs look like `arn:aws:eks:<region>:<acct>:cluster/<name>`. Keep the
+  // cluster name (after the last `/`) so the topbar stays readable.
+  const slash = raw.lastIndexOf("/");
+  if (slash >= 0 && slash < raw.length - 1) return raw.slice(slash + 1);
+  // Any other kind: if long, keep the last 28 chars with an ellipsis prefix.
+  if (raw.length > 32) return "…" + raw.slice(-28);
+  return raw;
+}
+
 function tierClasses(tier: Tier) {
   if (tier === "critical")
     return {
-      bg: "bg-tier-critical-bg",
-      border: "border-tier-critical/40",
+      bg: "bg-tier-critical-soft",
+      border: "border-tier-critical",
       text: "text-tier-critical",
       icon: "text-tier-critical",
-      meta: "text-tier-critical/80",
+      meta: "text-tier-critical",
+      divider: "bg-tier-critical/40",
       badge: "bg-tier-critical text-white",
     };
   if (tier === "staging")
     return {
-      bg: "bg-tier-staging-bg",
-      border: "border-tier-staging/50",
-      text: "text-[oklch(35%_0.10_70)]",
+      bg: "bg-tier-staging-soft",
+      border: "border-tier-staging",
+      text: "text-[oklch(30%_0.10_70)]",
       icon: "text-tier-staging",
-      meta: "text-tier-staging/80",
+      meta: "text-[oklch(35%_0.10_70)]",
+      divider: "bg-tier-staging/50",
       badge: "bg-tier-staging text-[oklch(25%_0.08_70)]",
     };
   return {
-    bg: "bg-brand-tint",
-    border: "border-brand-soft",
+    bg: "bg-brand-soft",
+    border: "border-brand",
     text: "text-brand-strong",
-    icon: "text-brand",
-    meta: "text-brand/80",
+    icon: "text-brand-strong",
+    meta: "text-brand-strong",
+    divider: "bg-brand/40",
     badge: "bg-brand text-white",
   };
 }

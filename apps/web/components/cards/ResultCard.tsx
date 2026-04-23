@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronsUpDown, MoreHorizontal, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronsUpDown, Inbox, MoreHorizontal, RotateCcw } from "lucide-react";
 
 import { Card, CardMeta } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
@@ -178,11 +178,14 @@ function TableView({
     });
     return copy;
   }, [rows, sortKey, sortDir]);
+  const stateSummary = useMemo(() => buildStateSummary(rows, columns), [rows, columns]);
 
   if (rows.length === 0) {
     return (
-      <div className="h-12 flex items-center justify-center text-small text-text-muted">
-        — no rows —
+      <div className="px-5 py-8 flex flex-col items-center justify-center gap-2 text-text-muted">
+        <Inbox size={22} strokeWidth={1.8} aria-hidden />
+        <div className="text-small">No rows matched.</div>
+        <div className="text-caption text-text-muted/80">The command ran cleanly — just nothing to show.</div>
       </div>
     );
   }
@@ -190,6 +193,8 @@ function TableView({
   const hasActions = !!(rowActions && rowActions.length && onAction);
 
   return (
+    <div>
+      {stateSummary && <TableSummaryStrip total={rows.length} {...stateSummary} />}
     <div className="overflow-x-auto">
       <table className="w-full font-mono text-small">
         <thead>
@@ -248,6 +253,100 @@ function TableView({
           ))}
         </tbody>
       </table>
+    </div>
+    </div>
+  );
+}
+
+// ── Table summary strip — aggregate state breakdown for at-a-glance view ─
+
+type StateBucket = "ok" | "warn" | "danger" | "neutral";
+
+interface StateSummary {
+  label: string;             // column label, e.g. "Phase"
+  buckets: Map<string, { count: number; tone: StateBucket }>;
+}
+
+function buildStateSummary(
+  rows: unknown[],
+  columns: Column[],
+): StateSummary | null {
+  // Only meaningful with enough rows to warrant a rollup.
+  if (rows.length < 3) return null;
+  const stateCol = columns.find((c) => c.renderer === "state-badge");
+  if (!stateCol) return null;
+  const buckets = new Map<string, { count: number; tone: StateBucket }>();
+  for (const row of rows) {
+    const raw = resolveKey(row, stateCol.key);
+    if (raw == null) continue;
+    const v = String(raw);
+    const tone = stateTone(v);
+    const prev = buckets.get(v);
+    if (prev) prev.count += 1;
+    else buckets.set(v, { count: 1, tone });
+  }
+  if (buckets.size === 0) return null;
+  // If everything is in one bucket AND it's OK, suppress the strip
+  // (nothing to flag; the table header says enough).
+  if (buckets.size === 1) {
+    const only = [...buckets.values()][0];
+    if (only.tone === "ok") return null;
+  }
+  return { label: stateCol.label, buckets };
+}
+
+function stateTone(value: string): StateBucket {
+  const v = value.toLowerCase();
+  if (v === "running" || v === "ready" || v === "ok" || v === "active" || v === "true" || v === "available" || v === "succeeded")
+    return "ok";
+  if (v === "pending" || v === "unknown" || v === "waiting" || v === "progressing" || v === "warn")
+    return "warn";
+  if (
+    v === "failed" || v === "error" || v === "crashloopbackoff" ||
+    v === "errimagepull" || v === "imagepullbackoff" || v === "oomkilled" ||
+    v === "notready" || v === "unschedulable" || v === "false"
+  )
+    return "danger";
+  return "neutral";
+}
+
+function TableSummaryStrip({
+  total,
+  label,
+  buckets,
+}: {
+  total: number;
+  label: string;
+  buckets: StateSummary["buckets"];
+}) {
+  // Sort: danger → warn → ok → neutral so eyes land on problems first.
+  const order: Record<StateBucket, number> = { danger: 0, warn: 1, ok: 2, neutral: 3 };
+  const items = [...buckets.entries()]
+    .sort(([, a], [, b]) => order[a.tone] - order[b.tone]);
+  return (
+    <div className="flex items-center gap-2 flex-wrap px-4 py-2.5 bg-surface-sub/60 border-b border-border-subtle">
+      <span className="text-caption tracking-chip uppercase text-text-muted shrink-0">
+        {total} · {label}
+      </span>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {items.map(([value, { count, tone }]) => (
+          <span
+            key={value}
+            className={cn(
+              "inline-flex items-center gap-1.5 h-6 px-2 rounded-full text-caption",
+              "tracking-chip uppercase font-semibold border",
+              tone === "ok" && "bg-ok-soft text-ok border-ok/30",
+              tone === "warn" && "bg-warn-soft text-warn border-warn/40",
+              tone === "danger" && "bg-danger-soft text-danger border-danger/40",
+              tone === "neutral" && "bg-surface text-text-muted border-border-subtle",
+            )}
+            title={`${count} × ${value}`}
+          >
+            <span className="tabular font-mono">{count}</span>
+            <span className="font-mono normal-case">{value}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -433,7 +532,12 @@ function ObjectView({ value }: { value: unknown }) {
   const json = useMemo(() => JSON.stringify(value, null, 2), [value]);
 
   if (value == null) {
-    return <div className="h-12 flex items-center justify-center text-small text-text-muted">— empty —</div>;
+    return (
+      <div className="px-5 py-8 flex flex-col items-center justify-center gap-2 text-text-muted">
+        <Inbox size={22} strokeWidth={1.8} aria-hidden />
+        <div className="text-small">No output.</div>
+      </div>
+    );
   }
 
   if (Array.isArray(value)) {
@@ -448,6 +552,22 @@ function ObjectView({ value }: { value: unknown }) {
   }
 
   if (typeof value === "object") {
+    // Shape-detect: anything that looks like a kubectl .status object
+    // (array of {type, status} conditions + replica counts) gets a rich
+    // card rendering instead of the key-value dump. This is deliberately
+    // generic — /app status / /cluster get deploy / any future skill that
+    // projects a Deployment's .status subtree picks it up automatically.
+    if (looksLikeKubeStatus(value)) {
+      return (
+        <KubeStatusView
+          status={value as Record<string, unknown>}
+          json={json}
+          showRaw={showRaw}
+          onToggleRaw={() => setShowRaw((s) => !s)}
+        />
+      );
+    }
+
     const entries = Object.entries(value as Record<string, unknown>);
     return (
       <div className="p-5">
@@ -469,7 +589,7 @@ function ObjectView({ value }: { value: unknown }) {
               <div key={k} className="contents">
                 <dt className="kicker text-right pt-0.5">{k}</dt>
                 <dd className="text-text-primary break-words">
-                  {typeof v === "object" ? JSON.stringify(v) : String(v)}
+                  <NestedValue v={v} />
                 </dd>
               </div>
             ))}
@@ -480,6 +600,266 @@ function ObjectView({ value }: { value: unknown }) {
   }
 
   return <div className="p-5 font-mono text-small">{String(value)}</div>;
+}
+
+function NestedValue({ v }: { v: unknown }) {
+  // Primitive scalars — render verbatim.
+  if (v === null || v === undefined) return <span className="text-text-muted">—</span>;
+  if (typeof v !== "object") return <>{String(v)}</>;
+  // Array of primitives — comma list.
+  if (Array.isArray(v)) {
+    if (v.length === 0) return <span className="text-text-muted">[]</span>;
+    if (v.every((x) => typeof x !== "object")) {
+      return <>{v.map(String).join(", ")}</>;
+    }
+    // Array of objects — compact line-per-item summary.
+    return (
+      <ul className="space-y-1">
+        {v.map((item, i) => (
+          <li key={i} className="text-text-secondary">
+            <code className="text-[12px]">{summarizeObject(item)}</code>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  // Nested object — single-line summary.
+  return <code className="text-[12px] text-text-secondary">{summarizeObject(v)}</code>;
+}
+
+function summarizeObject(o: unknown): string {
+  if (o === null || typeof o !== "object") return String(o);
+  const entries = Object.entries(o as Record<string, unknown>);
+  // Keep it tight: first 4 keys, values truncated to 20 chars.
+  const parts = entries.slice(0, 4).map(([k, v]) => {
+    const s =
+      v === null || v === undefined
+        ? "—"
+        : typeof v === "object"
+          ? "{…}"
+          : String(v);
+    return `${k}=${s.length > 20 ? s.slice(0, 17) + "…" : s}`;
+  });
+  if (entries.length > 4) parts.push(`+${entries.length - 4}`);
+  return `{ ${parts.join("  ")} }`;
+}
+
+// ── Kube .status — rich SRE-facing render ──────────────────────────────
+//
+// Detects a shape like:
+//   { replicas, readyReplicas, availableReplicas, updatedReplicas,
+//     observedGeneration, conditions: [{type, status, reason, message,
+//     lastTransitionTime}] }
+// and renders it as a healthy/degraded banner + 4 KPI tiles + a list of
+// conditions with ✓/✗ glyphs and relative timestamps.
+
+type KubeCondition = {
+  type?: string;
+  status?: string;
+  reason?: string;
+  message?: string;
+  lastTransitionTime?: string;
+  lastUpdateTime?: string;
+};
+
+function looksLikeKubeStatus(v: unknown): boolean {
+  if (!v || typeof v !== "object") return false;
+  const s = v as Record<string, unknown>;
+  const conditions = s.conditions;
+  if (!Array.isArray(conditions) || conditions.length === 0) return false;
+  const looksCondition = conditions.every(
+    (c) =>
+      c &&
+      typeof c === "object" &&
+      "type" in (c as object) &&
+      "status" in (c as object),
+  );
+  if (!looksCondition) return false;
+  // At least ONE replica-count key, or an observedGeneration, so we don't
+  // accidentally catch a generic `conditions: [...]` object.
+  return (
+    "replicas" in s ||
+    "readyReplicas" in s ||
+    "availableReplicas" in s ||
+    "observedGeneration" in s
+  );
+}
+
+function KubeStatusView({
+  status,
+  json,
+  showRaw,
+  onToggleRaw,
+}: {
+  status: Record<string, unknown>;
+  json: string;
+  showRaw: boolean;
+  onToggleRaw: () => void;
+}) {
+  const conditions = (status.conditions ?? []) as KubeCondition[];
+  const available = conditions.find((c) => c.type === "Available");
+  const progressing = conditions.find((c) => c.type === "Progressing");
+  const replicaFailure = conditions.find((c) => c.type === "ReplicaFailure");
+
+  const replicas = num(status.replicas);
+  const ready = num(status.readyReplicas);
+  const availCount = num(status.availableReplicas);
+  const updated = num(status.updatedReplicas);
+  const observed = num(status.observedGeneration);
+
+  const healthy =
+    available?.status === "True" &&
+    !replicaFailure &&
+    ready === replicas &&
+    (progressing ? progressing.status === "True" : true);
+
+  return (
+    <div className="p-5 space-y-5">
+      {/* top banner */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 h-7 px-3 rounded-full font-semibold text-small",
+                healthy
+                  ? "bg-ok-soft text-ok"
+                  : "bg-danger-soft text-danger",
+              )}
+            >
+              <span aria-hidden>{healthy ? "✓" : "✕"}</span>
+              {healthy ? "Healthy" : "Degraded"}
+            </span>
+            {observed !== null && (
+              <span className="text-caption tracking-chip uppercase text-text-muted">
+                generation · {observed}
+              </span>
+            )}
+          </div>
+          {!healthy && available?.message && (
+            <p className="mt-2 text-small text-text-secondary max-w-prose">
+              {available.message}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={onToggleRaw}
+          className="kicker text-text-muted hover:text-text-secondary shrink-0"
+        >
+          {showRaw ? "hide raw" : "view raw"}
+        </button>
+      </div>
+
+      {/* KPI grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <Kpi
+          label="Replicas"
+          value={replicas === null ? "—" : `${ready ?? 0}/${replicas}`}
+          hint="ready / desired"
+          tone={ready === replicas ? "ok" : "warn"}
+        />
+        <Kpi
+          label="Available"
+          value={availCount ?? "—"}
+          tone={availCount === replicas ? "ok" : "warn"}
+        />
+        <Kpi
+          label="Updated"
+          value={updated ?? "—"}
+          tone={updated === replicas ? "ok" : "warn"}
+        />
+        <Kpi
+          label="Terminating"
+          value={num(status.terminatingReplicas) ?? 0}
+          tone={(num(status.terminatingReplicas) ?? 0) > 0 ? "warn" : "muted"}
+        />
+      </div>
+
+      {/* Conditions */}
+      <div>
+        <div className="kicker mb-2">Conditions</div>
+        <ul className="divide-y divide-border-subtle rounded-lg border border-border-subtle bg-surface-sub">
+          {conditions.map((c, i) => (
+            <li key={i} className="px-3 py-2.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <ConditionGlyph status={c.status} />
+                <span className="font-semibold text-text-primary text-small">
+                  {c.type ?? "—"}
+                </span>
+                {c.reason && (
+                  <span className="text-caption tracking-chip uppercase text-text-muted">
+                    {c.reason}
+                  </span>
+                )}
+                <span className="ml-auto text-caption text-text-muted tabular">
+                  {c.lastTransitionTime || c.lastUpdateTime
+                    ? formatRelativeTime(c.lastTransitionTime || c.lastUpdateTime || "")
+                    : "—"}
+                </span>
+              </div>
+              {c.message && (
+                <p className="mt-1 text-small text-text-secondary leading-snug">
+                  {c.message}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {showRaw && (
+        <pre className="font-mono text-[12px] text-text-secondary whitespace-pre overflow-x-auto bg-canvas rounded-lg p-3 border border-border-subtle">
+          {json}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+function Kpi({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+  tone?: "ok" | "warn" | "muted";
+}) {
+  const toneCls =
+    tone === "ok"
+      ? "text-ok"
+      : tone === "warn"
+        ? "text-warn"
+        : "text-text-primary";
+  return (
+    <div className="rounded-lg border border-border-subtle bg-surface-sub px-3 py-2.5">
+      <div className="kicker text-text-muted">{label}</div>
+      <div className={cn("mt-1 font-display text-[22px] font-bold tabular leading-none", toneCls)}>
+        {value}
+      </div>
+      {hint && (
+        <div className="mt-1 text-caption text-text-muted">{hint}</div>
+      )}
+    </div>
+  );
+}
+
+function ConditionGlyph({ status }: { status?: string }) {
+  if (status === "True") {
+    return <span aria-hidden className="text-ok">✓</span>;
+  }
+  if (status === "False") {
+    return <span aria-hidden className="text-danger">✕</span>;
+  }
+  return <span aria-hidden className="text-text-muted">·</span>;
+}
+
+function num(v: unknown): number | null {
+  if (typeof v === "number") return v;
+  if (typeof v === "string" && /^-?\d+$/.test(v)) return Number(v);
+  return null;
 }
 
 // ── Log ────────────────────────────────────────────────────────────────

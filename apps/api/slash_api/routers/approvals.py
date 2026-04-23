@@ -232,6 +232,68 @@ def decide_approval(
                 output_spec=plan.output_spec,
             )
 
+    # Server-side dry-run (spec.dryrun.argv) — optional second guard after
+    # preflight. Where preflight only probes "does the resource exist", dry-run
+    # asks the backing CLI/API to validate the intended mutation itself
+    # (kubectl --dry-run=server, aws --dry-run, …). If the server rejects,
+    # abort without calling bash.argv / bash.steps. See docs/05 §2 T2.
+    if plan.dryrun_argv:
+        dr_result = run_bash(plan.dryrun_argv, plan.env, min(plan.timeout_s, 30.0))
+        ok_codes = plan.dryrun_success_codes or [0]
+        if dr_result.timed_out or dr_result.exit_code not in ok_codes:
+            first = dr_result.stderr.strip().splitlines()[0] if dr_result.stderr.strip() else ""
+            err_msg = (
+                "dry-run timed out" if dr_result.timed_out else
+                f"dry-run exited {dr_result.exit_code} (expected {ok_codes})"
+                + (f": {first}" if first else "")
+            )
+            audit.append({
+                "run_id": run_id,
+                "user": user(),
+                "actor": x_slash_actor,
+                "command": plan.command,
+                "parsed_command": plan.parsed_command,
+                "skill_id": plan.skill_id,
+                "skill_version": plan.skill_version,
+                "mode": "write",
+                "risk": plan.risk,
+                "state": "error",
+                "plan_summary": {
+                    "target": plan.target,
+                    "steps": list(plan.steps),
+                    "before": plan.before,
+                    "after": plan.after,
+                    "rollback_command": plan.rollback_command or "",
+                },
+                "approval_decision": {
+                    "decision": "approve",
+                    "by": x_slash_actor,
+                    "reason": plan.reason or req.comment or "",
+                },
+                "approval_reason": plan.reason or req.comment,
+                "profile": {"kind": plan.profile_kind, "name": plan.profile_name},
+                "execution_argv": list(plan.dryrun_argv),
+                "started_at": dr_result.started_at,
+                "ended_at": dr_result.ended_at,
+                "exit_code": dr_result.exit_code,
+                "stderr": dr_result.stderr,
+                "summary": f"dry-run blocked apply: {err_msg}",
+            })
+            remove(run_id)
+            return DecisionResponse(
+                run_id=run_id,
+                decided=True,
+                decision="approve",
+                state="error",
+                error_code="DryRunFailed",
+                error_message=err_msg,
+                stderr_excerpt=dr_result.stderr[:2000] or None,
+                output_spec=plan.output_spec,
+                started_at=dr_result.started_at or None,
+                ended_at=dr_result.ended_at or None,
+                approval_state="approved",
+            )
+
     # Single-step vs multi-step dispatch. Multi-step skills declare
     # spec.bash.steps; we short-circuit the chain on first non-zero exit
     # (execute_steps enforces that). For UI / audit we surface a per-step
