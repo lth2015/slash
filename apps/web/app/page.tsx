@@ -173,7 +173,7 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <ContextBar />
+      <ContextBar onPickCommand={handleSuggestion} />
       <UnpinnedPrompt onTypeCommand={handleSuggestion} />
       <Conversation
         turns={turns}

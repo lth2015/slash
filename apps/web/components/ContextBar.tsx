@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Box, Boxes, Cloud, Pin } from "lucide-react";
 
+import { RecentRunsDrawer } from "@/components/RecentRunsDrawer";
 import { cn } from "@/lib/cn";
 
 type Tier = "critical" | "staging" | "safe";
@@ -23,7 +24,13 @@ interface ContextState {
 
 type ContextKind = "k8s" | "aws" | "gcp";
 
-export function ContextBar() {
+interface Props {
+  /** Called when the user picks a recent run from the drawer. Forwarded
+   *  verbatim as the original command so the CommandBar re-parses it. */
+  onPickCommand?: (cmd: string) => void;
+}
+
+export function ContextBar({ onPickCommand }: Props = {}) {
   const [state, setState] = useState<ContextState | null>(null);
 
   const refresh = useCallback(async () => {
@@ -68,6 +75,7 @@ export function ContextBar() {
       </div>
 
       <div className="ml-auto flex items-center gap-2.5">
+        <RecentRunsDrawer onPickCommand={(cmd) => onPickCommand?.(cmd)} />
         {pins.map((p) =>
           p.name ? (
             <PinPill key={p.kind} kind={p.kind} name={p.name} tier={p.tier} />

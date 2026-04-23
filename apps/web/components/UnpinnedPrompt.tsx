@@ -71,7 +71,7 @@ export function UnpinnedPrompt({
             </p>
             <p className="mt-2.5 text-[15px] text-[oklch(32%_0.06_75)] leading-relaxed">
               Pin once per session — every command after inherits the pinned
-              context. Use <span className="font-mono text-[oklch(26%_0.10_75)] font-semibold">/ctx list</span> to see what's available on this machine.
+              context. Use <span className="font-mono text-[oklch(26%_0.10_75)] font-semibold">/ctx list</span> to see what&apos;s available on this machine.
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <button

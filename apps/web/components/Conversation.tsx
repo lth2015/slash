@@ -6,10 +6,12 @@ import { ArrowRight } from "lucide-react";
 import { ApprovalCard } from "@/components/cards/ApprovalCard";
 import { ErrorCard, ErrorPayload } from "@/components/cards/ErrorCard";
 import { LlmSummaryCard, LlmSummary } from "@/components/cards/LlmSummaryCard";
+import { ParsedCard, ParsedSummary } from "@/components/cards/ParsedCard";
 import { PlanCard, PlanData } from "@/components/cards/PlanCard";
 import { ResultCard, ResultPayload } from "@/components/cards/ResultCard";
 import { RunCard } from "@/components/cards/RunCard";
 import { UserCommandRow } from "@/components/cards/UserCommandRow";
+import { TurnPhaseBar, readPhases, writePhases } from "@/components/TurnPhaseBar";
 
 export type Turn =
   | { kind: "read"; command: string; result: ResultPayload; llm?: LlmSummary }
@@ -70,11 +72,17 @@ function TurnView({
   onSuggestionClick: (cmd: string) => void;
 }) {
   if (turn.kind === "read") {
+    const result = turn.result;
+    const phases = readPhases(
+      result.state === "ok" ? "ok" : "error",
+    );
     return (
       <section className="space-y-3">
         <UserCommandRow text={turn.command} />
+        <TurnPhaseBar phases={phases} />
+        <ParsedCard parsed={parsedFromResult(result)} />
         <ResultCard
-          result={turn.result}
+          result={result}
           onRollback={onSuggestionClick}
           onAction={onSuggestionClick}
         />
@@ -88,18 +96,36 @@ function TurnView({
     );
   }
   if (turn.kind === "error") {
+    // Parse-time / network errors don't have a successful AST. We show the
+    // phase bar with parsed=failed so the flow is still readable.
     return (
       <section className="space-y-3">
         <UserCommandRow text={turn.command} />
-        <ErrorCard error={turn.error} />
+        <TurnPhaseBar
+          phases={[
+            { kind: "parsed", label: "parsed", state: "failed" },
+            { kind: "finished", label: "—", state: "pending" },
+          ]}
+        />
+        <ErrorCard error={turn.error} onSuggestionClick={onSuggestionClick} />
       </section>
     );
   }
+  const stage = turn.stage;
+  const resultState =
+    turn.result?.state === "ok"
+      ? "ok"
+      : turn.result?.state === "error"
+        ? "error"
+        : undefined;
+  const phases = writePhases(stage, resultState as "ok" | "error" | undefined);
   return (
     <section className="space-y-3">
       <UserCommandRow text={turn.command} />
+      <TurnPhaseBar phases={phases} />
+      <ParsedCard parsed={parsedFromPlan(turn.plan)} />
       <PlanCard plan={turn.plan} />
-      {turn.stage === "waiting" && (
+      {stage === "waiting" && (
         <ApprovalCard
           runId={turn.plan.run_id}
           danger={turn.plan.danger}
@@ -111,24 +137,43 @@ function TurnView({
           }
         />
       )}
-      {turn.stage === "running" && <RunCard streaming message="" />}
-      {turn.stage === "done" && turn.result && (
+      {stage === "running" && <RunCard streaming message="" />}
+      {stage === "done" && turn.result && (
         <ResultCard
           result={turn.result}
           onRollback={onSuggestionClick}
           onAction={onSuggestionClick}
         />
       )}
-      {turn.stage === "rejected" && (
+      {stage === "rejected" && (
         <ErrorCard
           error={{
             code: "Rejected",
             message: `Plan rejected${turn.rejection_reason ? `: ${turn.rejection_reason}` : "."}`,
           }}
+          onSuggestionClick={onSuggestionClick}
         />
       )}
     </section>
   );
+}
+
+function parsedFromResult(r: ResultPayload): ParsedSummary {
+  return {
+    skill_id: r.skill_id,
+    mode: r.mode as "read" | "write",
+    flags: undefined,
+    positional: undefined,
+  };
+}
+
+function parsedFromPlan(p: PlanData): ParsedSummary {
+  return {
+    skill_id: p.skill_id,
+    mode: "write",
+    profile_kind: p.profile_kind ?? null,
+    profile_name: p.profile_name ?? null,
+  };
 }
 
 // ── Welcome / empty state ───────────────────────────────────────────────
