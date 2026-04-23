@@ -1,5 +1,16 @@
 # 03 · 架构
 
+## 0. 范围（先读这段）
+
+**这是一个 single-machine local PoC。** 下面图里写"FastAPI Backend"只是因为 UI 通过 HTTP 调它——它不是服务、不对外暴露、不做 auth、也不为"演进成服务"留接口。运行形态固定是：
+
+- 单 OS 用户 · 单浏览器会话 · 单 FastAPI 进程 · 绑定 `127.0.0.1`
+- 端点数量稳定在 §2.2 列表，不做扩张；字段/版本不构成对外契约
+- 没有 DB，没有外部 sink，状态 = 内存 + `var/audit.jsonl`
+- 没有编排引擎：一个 Skill 对应一次 `subprocess.run(argv, …)`
+
+如果有需求 push 我们往"服务化"方向走（多租户、鉴权网关、任务编排、对外 API），默认回答：那是另一个产品，不在这个 PoC 的路径上。
+
 ## 1. 总览
 
 ```
@@ -15,7 +26,7 @@
                                 │ REST + WebSocket
                                 ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│                          FastAPI Backend                              │
+│              FastAPI (localhost adapter · 127.0.0.1 only)             │
 │  /parse → Parser + Skill Registry (loaded from skills/)              │
 │  /execute → Runtime (bash) ──► audit.jsonl                           │
 │  /approve → HITL (pending plan table)                                │

@@ -1,8 +1,10 @@
 # 01 · 产品规格
 
+> **阶段标签：single-machine local PoC。** 下文所有结论都默认这个边界——一台开发机、一个 OS 用户、一个浏览器会话。不是在设计"服务"，也不是在为未来的服务化铺路。
+
 ## 1. 一句话
 
-SRE 在本机跑一个单窗口驾驶舱，用严格命令语言操作 AWS / GCP / Kubernetes；写操作人类审批；LLM 只帮"读懂结果"。
+SRE 在本机跑一个单窗口驾驶舱，用严格命令语言操作 AWS / GCP / Kubernetes；写操作人类本机审批；LLM 只帮"读懂结果"。
 
 ## 2. 用户
 
@@ -30,13 +32,15 @@ SRE 在本机跑一个单窗口驾驶舱，用严格命令语言操作 AWS / GCP
 
 覆盖：`/infra aws|gcp`、`/cluster <ctx>`、简单 `/ops audit logs`（读 jsonl 文件）。共约 10 条原子 skill，对齐 [02](./02-commands.md)。
 
-## 5. 明确不做
+## 5. 明确不做（本阶段非目标）
 
 - **不做** 自然语言执行入口。LLM 不解释命令去执行。
-- **不做** 多用户、SSO、RBAC、多租户。
+- **不做** 多用户 / SSO / RBAC / 多租户。本机一个 OS 用户、一次浏览器会话。
+- **不做** API 扩张。后端 FastAPI 只是单窗口 UI 的本机适配层（绑定 `127.0.0.1`），端点是内部接缝、不是对外契约，也不会演进为"服务"。
+- **不做** 持久化数据库。内存 + 一个 `var/audit.jsonl` 就够了。HITL pending plan 进程内一张 dict。
+- **不做** 编排引擎。一个 Skill = 一条原子 bash 调用（一次 `aws`/`kubectl`/`gcloud`）。没有 DAG、没有工作流、没有重试策略（除单条 skill 的 timeout）、没有调度器。
 - **不做** Skill 市场 / Skill Browser / Skill 版本化存储。Skills 是本地文件、改了就生效。
 - **不做** 审批队列页、审计查询页。审批在对话流卡里批；审计在 `audit.jsonl` 里，要查就用 `/ops audit logs`。
-- **不做** 持久化数据库。jsonl + in-memory 足够。
 - **不做** 业务花哨：没有图表仪表盘、没有 SLO 面板、没有告警集成（除非以 `/ops alert` 命令形式访问已有监控系统）。
 - **不做** 容器化部署。本机 `make dev` 跑起来就行。
 
