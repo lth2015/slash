@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from slash_api import audit
 from slash_api.hitl import decide, list_pending, remove
-from slash_api.runtime import RunResult, parse_output
+from slash_api.runtime import RunResult, execute_steps, parse_output
 from slash_api.runtime import execute as run_bash
 from slash_api.state import user
 
@@ -65,6 +65,9 @@ class DecisionResponse(BaseModel):
     ended_at: str | None = None
     # HITL state after this decision: "approved" or "rejected".
     approval_state: str | None = None
+    # Per-step breakdown for multi-step writes (spec.bash.steps). Empty list
+    # on single-step skills so clients can treat this field uniformly.
+    per_step_results: list[dict] = []
     # Present only on state=ok for a write skill that declared an executable
     # spec.rollback. Client can wire a "Roll back" button that pre-fills the
     # CommandBar with this string; the rollback still goes through /execute +
@@ -229,10 +232,49 @@ def decide_approval(
                 output_spec=plan.output_spec,
             )
 
-    result = run_bash(plan.argv, plan.env, plan.timeout_s)
-    state, outputs, err_code, err_msg = _shape_result(result, plan.output_spec)
+    # Single-step vs multi-step dispatch. Multi-step skills declare
+    # spec.bash.steps; we short-circuit the chain on first non-zero exit
+    # (execute_steps enforces that). For UI / audit we surface a per-step
+    # breakdown so reviewers can see exactly which step failed.
+    if plan.argv_steps:
+        step_results = execute_steps(
+            [argv for _, argv in plan.argv_steps],
+            plan.env,
+            plan.timeout_s,
+        )
+        result = step_results[-1]
+        # Overall state: ok only if the LAST step completed AND we ran every
+        # declared step (short-circuit means some steps never spawned).
+        fully_ran = len(step_results) == len(plan.argv_steps)
+        if fully_ran and result.exit_code == 0 and not result.timed_out:
+            state, outputs, err_code, err_msg = _shape_result(result, plan.output_spec)
+        else:
+            _, _, err_code, err_msg = _shape_result(result, plan.output_spec)
+            state = "error"
+            outputs = None
+        per_step_records = _build_per_step_records(plan.argv_steps, step_results)
+        # Flatten stdout/stderr for the envelope: most UIs only peek; the
+        # full per-step output is in the audit.
+        aggregate_stdout = "\n".join(r.stdout for r in step_results)
+        aggregate_stderr = "\n".join(r.stderr for r in step_results)
+        duration_ms = sum(r.duration_ms for r in step_results)
+        started_at = step_results[0].started_at if step_results else ""
+        ended_at = step_results[-1].ended_at if step_results else ""
+        execution_argv_audit: list[str] = []
+        for _, argv in plan.argv_steps:
+            execution_argv_audit.extend(argv)
+    else:
+        result = run_bash(plan.argv, plan.env, plan.timeout_s)
+        state, outputs, err_code, err_msg = _shape_result(result, plan.output_spec)
+        per_step_records = []
+        aggregate_stdout = result.stdout
+        aggregate_stderr = result.stderr
+        duration_ms = result.duration_ms
+        started_at = result.started_at
+        ended_at = result.ended_at
+        execution_argv_audit = list(plan.argv)
 
-    audit.append({
+    audit_event = {
         "run_id": run_id,
         "user": user(),
         "actor": x_slash_actor,
@@ -258,17 +300,20 @@ def decide_approval(
         "approval_reason": plan.reason or req.comment,
         "profile": {"kind": plan.profile_kind, "name": plan.profile_name},
         "exit_code": result.exit_code,
-        "duration_ms": result.duration_ms,
-        "started_at": result.started_at,
-        "ended_at": result.ended_at,
-        "execution_argv": list(plan.argv),
-        "stdout": result.stdout,
-        "stderr": result.stderr,
+        "duration_ms": duration_ms,
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "execution_argv": execution_argv_audit,
+        "stdout": aggregate_stdout,
+        "stderr": aggregate_stderr,
         "summary": err_msg or "applied",
         # Store the pre-rendered rollback so /audit queries can surface it
         # long after the in-memory plan is gone.
         "rollback_command": plan.rollback_command or "",
-    })
+    }
+    if per_step_records:
+        audit_event["per_step_results"] = per_step_records
+    audit.append(audit_event)
 
     remove(run_id)
 
@@ -278,18 +323,56 @@ def decide_approval(
         decision="approve",
         state=state,
         exit_code=result.exit_code,
-        duration_ms=result.duration_ms,
+        duration_ms=duration_ms,
         outputs=outputs,
-        stdout_excerpt=result.stdout[:4000],
-        stderr_excerpt=result.stderr[:2000],
+        stdout_excerpt=aggregate_stdout[:4000],
+        stderr_excerpt=aggregate_stderr[:2000],
         error_code=err_code,
         error_message=err_msg,
         output_spec=plan.output_spec,
         rollback_command=(plan.rollback_command or None) if state == "ok" else None,
-        started_at=result.started_at or None,
-        ended_at=result.ended_at or None,
+        started_at=started_at or None,
+        ended_at=ended_at or None,
         approval_state="approved",
+        per_step_results=per_step_records,
     )
+
+
+def _build_per_step_records(
+    argv_steps: list[tuple[str, list[str]]],
+    results: list[RunResult],
+) -> list[dict]:
+    """Zip the declared steps against the actual RunResult list. Steps that
+    never ran (due to an earlier short-circuit) land with state="skipped"."""
+    records: list[dict] = []
+    for i, (step_id, argv) in enumerate(argv_steps):
+        if i < len(results):
+            r = results[i]
+            step_state = (
+                "ok" if (r.exit_code == 0 and not r.timed_out)
+                else "timeout" if r.timed_out
+                else "error"
+            )
+            records.append({
+                "id": step_id,
+                "state": step_state,
+                "exit_code": r.exit_code,
+                "duration_ms": r.duration_ms,
+                "started_at": r.started_at,
+                "ended_at": r.ended_at,
+                "argv": argv,
+            })
+        else:
+            records.append({
+                "id": step_id,
+                "state": "skipped",
+                "exit_code": None,
+                "duration_ms": 0,
+                "started_at": "",
+                "ended_at": "",
+                "argv": argv,
+            })
+    return records
 
 
 def _shape_result(result: RunResult, output_spec: dict) -> tuple[str, Any, str | None, str | None]:

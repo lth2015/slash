@@ -21,6 +21,7 @@ from slash_api.parser import ParseError, parse
 from slash_api.runtime import (
     RunResult,
     build_argv,
+    build_argv_steps,
     parse_output,
     run_builtin,
 )
@@ -90,16 +91,18 @@ class ExecuteResponse(BaseModel):
     error_message: str | None = None
 
 
-def _build_ctx(ast, sel) -> BuildContext:
+def _build_ctx(ast, sel, manifest: dict | None = None) -> BuildContext:
     args: dict[str, Any] = dict(ast.flags)
     for i, positional_name in enumerate(_positional_names(ast)):
         if i < len(ast.positional):
             args[positional_name] = ast.positional[i]
-    profile_kind, profile_name = _resolve_profile(ast, sel)
-    # For /cluster the k8s context is resolved (strict mode): --ctx override,
-    # else session pin, else None — callers that need it will raise
-    # MissingContext downstream.
-    if ast.namespace == "cluster":
+    profile_kind, profile_name = _resolve_profile(ast, sel, manifest)
+    # k8s_context is threaded separately so `${profile.k8s.context}` can
+    # resolve regardless of the declared profile kind. For /cluster the
+    # --ctx override has highest priority; other namespaces that happen to
+    # declare profile.kind=k8s also use the same override path so /app and
+    # /cluster stay aligned.
+    if ast.namespace == "cluster" or profile_kind == "k8s":
         k8s_context = ast.overrides.get("ctx") or sel.k8s
     else:
         k8s_context = sel.k8s
@@ -127,14 +130,22 @@ def _skill_for(skill_id: str):
     return None
 
 
-def _resolve_profile(ast, sel) -> tuple[str | None, str | None]:
+def _resolve_profile(ast, sel, manifest: dict | None = None) -> tuple[str | None, str | None]:
     """Resolve (profile_kind, profile_name) for the run.
 
-    /infra  — provider comes from the positional target; profile name from
-              --profile override or session pin.
+    /infra   — provider comes from the positional target; profile name from
+               --profile override or session pin.
     /cluster — kind is always k8s; name from --ctx override or session pin.
-    other   — no profile.
+    other    — driven by the manifest's spec.profile.kind. /app skills that
+               declare profile.kind=k8s use the same k8s pin + --ctx override
+               path as /cluster; aws/gcp fall back to --profile + pin.
     """
+    # Manifest-driven path: any namespace whose skill declares a profile.kind
+    # should resolve from the matching pin. This keeps resolution symmetric
+    # across /cluster and /app, which both wrap kubectl.
+    declared_kind = None
+    if manifest is not None:
+        declared_kind = (manifest.get("spec", {}).get("profile") or {}).get("kind")
     if ast.namespace == "infra":
         override = ast.overrides.get("profile")
         if ast.target == "aws":
@@ -144,6 +155,18 @@ def _resolve_profile(ast, sel) -> tuple[str | None, str | None]:
     if ast.namespace == "cluster":
         resolved = ast.overrides.get("ctx") or sel.k8s
         return "k8s", resolved
+    # Non-infra/non-cluster namespaces (/app, /ops, /ctx …) — let the
+    # skill's declared profile.kind drive resolution. `/app` wraps kubectl
+    # and therefore reuses the k8s pin + --ctx override path.
+    if declared_kind == "k8s":
+        resolved = ast.overrides.get("ctx") or sel.k8s
+        return "k8s", resolved
+    if declared_kind == "aws":
+        override = ast.overrides.get("profile")
+        return "aws", override or sel.aws
+    if declared_kind == "gcp":
+        override = ast.overrides.get("profile")
+        return "gcp", override or sel.gcp
     return None, None
 
 
@@ -175,12 +198,25 @@ def _preflight(skill, sel, manifest, ast) -> str | None:
                 f"No {kind.upper()} profile set. Pin one with "
                 f"`/ctx pin {kind} <name>` or pass `--profile <name>`."
             )
-    if skill.namespace == "cluster" and profile_required:
+        return None
+    # /cluster and any namespace whose manifest declares profile.kind=k8s
+    # (currently /app) share the same k8s pin + --ctx override path.
+    if profile_required and profile_kind == "k8s":
         resolved = ast.overrides.get("ctx") or sel.k8s
         if not resolved:
             return (
                 "No k8s context set. Pin one with "
                 "`/ctx pin k8s <name>` or pass `--ctx <name>`."
+            )
+    # Aws/gcp declared at manifest level for non-/infra namespaces fall through
+    # the same pin-or-override check.
+    if profile_required and profile_kind in ("aws", "gcp"):
+        override = ast.overrides.get("profile")
+        chosen = override or (sel.aws if profile_kind == "aws" else sel.gcp)
+        if not chosen:
+            return (
+                f"No {profile_kind.upper()} profile set. Pin one with "
+                f"`/ctx pin {profile_kind} <name>` or pass `--profile <name>`."
             )
     return None
 
@@ -216,7 +252,7 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
     if pre:
         raise HTTPException(status_code=400, detail={"code": "MissingContext", "message": pre})
 
-    ctx = _build_ctx(ast, sel)
+    ctx = _build_ctx(ast, sel, manifest)
 
     # Determine profile env injection
     env_update = env_for_profile(ctx.profile_kind or "", ctx.profile_name)
@@ -228,7 +264,11 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
 
     # Write → stage plan, do NOT execute
     if skill.mode == "write":
-        argv = build_argv(manifest, ctx)
+        # Multi-step (spec.bash.steps) vs single-step (spec.bash.argv). Loader
+        # enforces exclusivity; here we pick the shape once and stash both
+        # fields on PendingPlan for unambiguous downstream dispatch.
+        argv_steps = build_argv_steps(manifest, ctx)
+        argv = argv_steps[0][1] if argv_steps else build_argv(manifest, ctx)
         plan_before, plan_after = _render_plan(manifest, ctx, env_update, timeout_s)
         pf_argv = _render_preflight(manifest, ctx)
         rollback_cmd = _render_rollback(manifest, ctx, plan_before, plan_after)
@@ -269,6 +309,7 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             steps=plan_steps,
             risk=plan_risk,
             parsed_command=parsed,
+            argv_steps=argv_steps if len(argv_steps) > 1 else [],
         )
         put_plan(plan)
 

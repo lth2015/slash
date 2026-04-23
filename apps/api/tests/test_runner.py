@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from slash_api.runtime import RunResult, execute
+from slash_api.runtime import RunResult, execute, execute_steps
 from slash_api.runtime import execute as run_bash  # the alias used by routers
 from slash_api.routers import approvals as approvals_router
 from slash_api.routers import execute as execute_router
@@ -87,3 +87,58 @@ def test_runner_never_passes_shell_true() -> None:
     offender = re.search(r"subprocess\.run\([^)]*shell\s*=\s*True", text, flags=re.DOTALL)
     assert offender is None, "subprocess.run(..., shell=True) detected"
     assert "shell=False" in text  # sanity: the explicit disable is still there
+
+
+# ── execute_steps (sequential multi-step runner) ────────────────────────
+
+def test_execute_steps_happy_path(tmp_path: Path) -> None:
+    """Two-step happy path — both exit 0, both results returned, in order."""
+    a = tmp_path / "a.txt"
+    a.write_text("step-1-output")
+
+    results = execute_steps(
+        [
+            ["/bin/echo", "s1"],
+            ["/bin/echo", "s2"],
+        ],
+        env={"SLASH_MOCK_STDOUT_PATH": str(a), "SLASH_MOCK_EXIT": "0"},
+        timeout_s=5.0,
+    )
+    assert len(results) == 2
+    assert all(r.exit_code == 0 for r in results)
+    assert all(_ISO_UTC.match(r.started_at) for r in results)
+    assert all(_ISO_UTC.match(r.ended_at) for r in results)
+
+
+def test_execute_steps_short_circuits_on_failure(tmp_path: Path) -> None:
+    """Step 1 returns exit=1 → step 2 must NOT spawn; results has only 1 entry.
+    This is the core safety property for writes: partial application is visible
+    in the returned list rather than being silently swallowed."""
+    stdout = tmp_path / "out.txt"
+    stdout.write_text("broken")
+
+    results = execute_steps(
+        [
+            ["/bin/echo", "first"],
+            ["/bin/echo", "second"],
+        ],
+        env={"SLASH_MOCK_STDOUT_PATH": str(stdout), "SLASH_MOCK_EXIT": "1"},
+        timeout_s=5.0,
+    )
+    assert len(results) == 1  # step 2 never ran
+    assert results[0].exit_code == 1
+
+
+def test_execute_steps_uses_same_execute() -> None:
+    """Each step goes through `execute()` — the single runner entry. Source-
+    level guard: execute_steps must delegate to execute(), not fork its own
+    subprocess path."""
+    import inspect
+
+    from slash_api.runtime import executor as exec_module
+
+    src = inspect.getsource(exec_module.execute_steps)
+    assert "execute(" in src, "execute_steps must call execute()"
+    assert "subprocess" not in src, (
+        "execute_steps must not reference subprocess directly — delegate to execute()"
+    )

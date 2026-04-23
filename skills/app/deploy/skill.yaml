@@ -1,0 +1,100 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: app.deploy
+  name: "Deploy an app image"
+  description: "Roll a new image into an app's Deployment, then wait for rollout to complete."
+  version: 0.1.0
+  labels: { stability: alpha, risk: high }
+
+spec:
+  command: { namespace: app, noun: [], verb: deploy }
+  mode: write
+  danger: true
+  danger_reason: |
+    Updates a production app's running image. If the new image is broken,
+    the rollout blocks on CrashLoopBackOff and the deployment stays degraded
+    until someone runs `/app rollback`. Always verify the image tag exists
+    in the registry before approving.
+  approvers: 1
+  timeout: 240s   # rollout status can take minutes for larger deployments
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: name,      type: string, positional: true, required: true }
+    - { name: ns,        flag: --ns,        type: string, required: true }
+    - { name: image,     flag: --image,     type: string, required: true }
+    - { name: container, flag: --container, type: string, default: "*" }
+    - { name: reason,    flag: --reason,    type: string, required: true }
+
+  preflight:
+    # Block approve-time if the Deployment has vanished since plan staged.
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - deployment
+      - "${name}"
+
+  plan:
+    # Capture the current image reference so the PlanCard's before/after diff
+    # shows precisely what's changing. jsonpath returns just the image string.
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - deployment
+      - "${name}"
+      - -o
+      - jsonpath={.spec.template.spec.containers[0].image}
+    diff:
+      before_source: stdout
+      after_value: "${image}"
+    target: "deploy/${name}"
+    steps:
+      - "Verify kubectl context ${profile.k8s.context} is reachable"
+      - "Check deployment ${name} exists in ns ${ns}"
+      - "Set image on deployment/${name} (${container}=${image})"
+      - "Wait for rollout to complete (timeout 3m)"
+
+  # Two-step write — set the image, then block on rollout status. The runner
+  # short-circuits on non-zero; if set-image fails there's nothing to wait
+  # for. If rollout times out the Deployment is left in whatever state kubectl
+  # observed; /app rollback reverts via `kubectl rollout undo`.
+  bash:
+    steps:
+      - id: set_image
+        argv:
+          - kubectl
+          - --context
+          - "${profile.k8s.context}"
+          - -n
+          - "${ns}"
+          - set
+          - image
+          - "deployment/${name}"
+          - "${container}=${image}"
+      - id: wait_rollout
+        argv:
+          - kubectl
+          - --context
+          - "${profile.k8s.context}"
+          - -n
+          - "${ns}"
+          - rollout
+          - status
+          - "deployment/${name}"
+          - "--timeout=180s"
+
+  rollback: |
+    /app rollback ${name} --ns ${ns} --reason "rollback deploy" --ctx ${profile.k8s.context}
+
+  output:
+    parse: text
+    kind: log

@@ -33,6 +33,16 @@ export interface OutputSpec {
   row_actions?: RowAction[];
 }
 
+export interface StepResult {
+  id: string;
+  state: "ok" | "error" | "timeout" | "skipped";
+  exit_code: number | null;
+  duration_ms: number;
+  started_at: string;
+  ended_at: string;
+  argv: string[];
+}
+
 export interface ResultPayload {
   run_id: string;
   skill_id: string;
@@ -47,6 +57,9 @@ export interface ResultPayload {
   /** Pre-rendered slash command that inverts this change; present only for
    *  write skills whose spec.rollback could be fully resolved at plan time. */
   rollback_command?: string | null;
+  /** Per-step breakdown for multi-step writes (spec.bash.steps). Empty or
+   *  undefined for single-step skills. */
+  per_step_results?: StepResult[];
 }
 
 export function ResultCard({
@@ -89,6 +102,10 @@ export function ResultCard({
         {kind === "object" && <ObjectView value={result.outputs} />}
         {kind === "log" && <LogView text={String(result.outputs ?? "")} />}
         {kind === "chart" && <ObjectView value={result.outputs} />}
+
+        {result.per_step_results && result.per_step_results.length > 0 && (
+          <PerStepPanel steps={result.per_step_results} />
+        )}
 
         {canRollback && (
           <div className="px-4 py-3 bg-warn-soft/40 border-t border-border-subtle flex items-start gap-3">
@@ -484,3 +501,67 @@ function highlightClass(line: string): string {
 }
 
 export { formatRelativeTime };
+
+
+// ── Per-step (multi-step write skills) ────────────────────────────────
+function PerStepPanel({ steps }: { steps: StepResult[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  return (
+    <div className="border-t border-border-subtle bg-surface-sub">
+      <div className="px-4 pt-3 pb-1 kicker text-text-muted">
+        steps · {steps.length}
+      </div>
+      <ol className="px-2 pb-2">
+        {steps.map((s, i) => {
+          const tone = stepTone(s.state);
+          const isOpen = expanded === s.id;
+          return (
+            <li key={s.id} className="rounded-md hover:bg-elevated transition-colors duration-80">
+              <button
+                onClick={() => setExpanded(isOpen ? null : s.id)}
+                className="w-full text-left flex items-center gap-3 px-2 py-1.5"
+              >
+                <span className={cn("w-5 text-caption tabular text-text-muted")}>{i + 1}.</span>
+                <span className={cn("inline-flex items-center gap-1.5 h-5 px-1.5 rounded-full text-caption tracking-chip uppercase", tone)}>
+                  {s.state}
+                </span>
+                <span className="font-mono text-small text-text-primary truncate flex-1">
+                  {s.id}
+                </span>
+                {s.exit_code !== null && (
+                  <span className="text-caption tabular text-text-muted">exit {s.exit_code}</span>
+                )}
+                {s.duration_ms > 0 && (
+                  <span className="text-caption tabular text-text-muted">{s.duration_ms}ms</span>
+                )}
+                <ChevronDown
+                  size={13}
+                  className={cn("text-text-muted transition-transform duration-160", isOpen && "rotate-180")}
+                  aria-hidden
+                />
+              </button>
+              {isOpen && (
+                <div className="pl-10 pr-4 pb-3 space-y-1.5">
+                  <pre className="font-mono text-[12.5px] text-text-secondary whitespace-pre-wrap break-all bg-canvas border border-border-subtle rounded-md p-2">
+                    {s.argv.join(" ")}
+                  </pre>
+                  {s.started_at && (
+                    <div className="text-caption text-text-muted font-mono tabular">
+                      {s.started_at} → {s.ended_at}
+                    </div>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+function stepTone(state: StepResult["state"]): string {
+  if (state === "ok") return "bg-ok-soft text-ok";
+  if (state === "error" || state === "timeout") return "bg-danger-soft text-danger";
+  return "bg-surface border border-border-subtle text-text-muted";
+}

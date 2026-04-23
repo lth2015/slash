@@ -18,7 +18,11 @@ class PendingPlan:
     skill_version: str
     mode: Literal["read", "write"]
     danger: bool
-    # argv to execute if approved
+    # argv to execute if approved. For single-step skills, `argv` is the
+    # rendered argv and `argv_steps` is empty. For multi-step skills
+    # (spec.bash.steps), `argv_steps` carries the ordered list of
+    # (step_id, argv) pairs and `argv` is set to the first step's argv
+    # for backwards-compat display (e.g. audit, approvals list).
     argv: list[str]
     env: dict[str, str]
     timeout_s: float
@@ -39,6 +43,9 @@ class PendingPlan:
     # here so the approve/reject audit events carry the SAME parsed shape
     # as the stage event, without re-parsing.
     parsed_command: dict = field(default_factory=dict)
+    # Multi-step manifests (spec.bash.steps) stash their full (step_id, argv)
+    # sequence here. Empty list for single-step skills.
+    argv_steps: list[tuple[str, list[str]]] = field(default_factory=list)
     # profile summary for audit
     profile_kind: str | None = None
     profile_name: str | None = None

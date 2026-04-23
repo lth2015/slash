@@ -182,6 +182,43 @@ def _load_one(manifest_path: Path) -> SkillSpec:
         if target_tmpl is not None and not isinstance(target_tmpl, str):
             raise RegistryError("spec.plan.target must be a string when set")
 
+    # Exactly one of {bash.argv, bash.steps, builtin} must be present.
+    # - bash.argv   : single subprocess invocation (the common form)
+    # - bash.steps  : sequential multi-step write (e.g. /app deploy)
+    # - builtin     : in-process handler, no subprocess (e.g. /ops audit logs)
+    # Mixing is a manifest author bug; fail loud at startup.
+    bash_block = spec.get("bash") or {}
+    if not isinstance(bash_block, dict):
+        raise RegistryError("spec.bash must be a mapping when set")
+    has_argv = isinstance(bash_block.get("argv"), list)
+    has_steps = isinstance(bash_block.get("steps"), list) and bool(bash_block.get("steps"))
+    has_builtin = bool(spec.get("builtin"))
+    present = sum(1 for x in (has_argv, has_steps, has_builtin) if x)
+    if present == 0:
+        raise RegistryError(
+            "skill must declare exactly one of spec.bash.argv, spec.bash.steps, or spec.builtin"
+        )
+    if present > 1:
+        raise RegistryError(
+            "spec.bash.argv / spec.bash.steps / spec.builtin are mutually exclusive"
+        )
+    if has_steps:
+        for i, step in enumerate(bash_block["steps"]):
+            if not isinstance(step, dict):
+                raise RegistryError(f"spec.bash.steps[{i}] must be a mapping")
+            step_argv = step.get("argv")
+            if not isinstance(step_argv, list) or not step_argv:
+                raise RegistryError(
+                    f"spec.bash.steps[{i}].argv must be a non-empty list of strings"
+                )
+            for j, el in enumerate(step_argv):
+                if not isinstance(el, str):
+                    raise RegistryError(
+                        f"spec.bash.steps[{i}].argv[{j}] must be a string"
+                    )
+            if step.get("id") is not None and not isinstance(step["id"], str):
+                raise RegistryError(f"spec.bash.steps[{i}].id must be a string when set")
+
     return SkillSpec(
         id=str(meta["id"]),
         namespace=namespace,

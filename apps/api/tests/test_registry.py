@@ -44,6 +44,8 @@ spec:
   mode: read
   args:
     - {name: region, flag: --region, type: string}
+  bash:
+    argv: [echo, placeholder]
 """.lstrip()
             % skill_id,
             encoding="utf-8",

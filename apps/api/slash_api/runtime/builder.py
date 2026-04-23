@@ -30,6 +30,45 @@ class BuildContext:
     k8s_context: str | None = None
 
 
+def build_argv_steps(manifest: dict, ctx: BuildContext) -> list[tuple[str, list[str]]]:
+    """Render the skill's multi-step bash.steps into a list of (step_id, argv).
+
+    Skills declare either `spec.bash.argv` (single-step, the common form) or
+    `spec.bash.steps` (ordered sequential writes — e.g. /app deploy: set-image
+    then rollout-status). Loader enforces exclusive presence; this helper
+    trusts that and raises BuildError if neither shape is available.
+
+    Each step's argv is rendered through the same `_interpolate` path as
+    `build_argv` — same safety contract.
+    """
+    bash = manifest.get("spec", {}).get("bash") or {}
+    steps = bash.get("steps")
+    if isinstance(steps, list) and steps:
+        out: list[tuple[str, list[str]]] = []
+        for idx, step in enumerate(steps):
+            if not isinstance(step, dict):
+                raise BuildError(f"spec.bash.steps[{idx}] must be a mapping")
+            step_argv = step.get("argv")
+            if not isinstance(step_argv, list):
+                raise BuildError(
+                    f"spec.bash.steps[{idx}].argv must be a list of strings"
+                )
+            rendered: list[str] = []
+            for element in step_argv:
+                if not isinstance(element, str):
+                    raise BuildError(
+                        f"spec.bash.steps[{idx}].argv element must be string, "
+                        f"got {type(element).__name__}"
+                    )
+                rendered.append(_interpolate(element, ctx))
+            step_id = str(step.get("id") or f"step_{idx}")
+            out.append((step_id, rendered))
+        return out
+    # Fall back: lift single-step argv into a 1-element step list so callers
+    # that always expect the step shape don't branch.
+    return [("step_0", build_argv(manifest, ctx))]
+
+
 def build_argv(manifest: dict, ctx: BuildContext) -> list[str]:
     """Render the skill's bash.argv list into a concrete argv list of strings."""
     bash = manifest.get("spec", {}).get("bash") or {}

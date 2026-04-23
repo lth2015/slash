@@ -132,3 +132,30 @@ def execute(
             started_at=started_at,
             ended_at=_iso_utc_now(),
         )
+
+
+def execute_steps(
+    argv_steps: list[list[str]],
+    env: dict[str, str],
+    timeout_s: float,
+) -> list[RunResult]:
+    """Run a sequence of argv invocations through the same `execute()` entry.
+    Short-circuits on the first non-zero exit: remaining steps are NOT spawned
+    and are therefore absent from the returned list (callers decide whether to
+    synthesize "skipped" placeholders for auditing).
+
+    This is the runtime primitive behind `spec.bash.steps` — used by
+    `/app deploy` and any future multi-call write skill. Each step still goes
+    through `execute()`, inheriting the argv-only / shell=False / ISO-timestamp
+    contract unchanged.
+
+    `timeout_s` is per-step, matching the skill's declared timeout for the
+    whole skill; a generous budget is the caller's responsibility for now.
+    """
+    results: list[RunResult] = []
+    for argv in argv_steps:
+        res = execute(argv, env, timeout_s)
+        results.append(res)
+        if res.exit_code != 0 or res.timed_out:
+            break
+    return results

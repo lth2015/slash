@@ -93,6 +93,29 @@ spec:
       AWS_PROFILE: "${profile.aws}"      # injected by runtime
     timeout: 30s
 
+  # ---- multi-step writes: bash.steps (alternative to bash.argv) ----
+  #
+  # Some writes take more than one CLI call — e.g. /app deploy is:
+  #   1. kubectl set image deployment/<name> <container>=<image>
+  #   2. kubectl rollout status deployment/<name> --timeout=...
+  #
+  # Declare them as ordered steps in place of a single argv. Runtime executes
+  # them through the SAME `execute()` entry, short-circuits on the first
+  # non-zero exit, and returns per-step results (id, exit_code, duration_ms,
+  # started_at/ended_at, argv) that the PlanCard / ResultCard surface.
+  #
+  #   bash:
+  #     steps:
+  #       - id: set_image
+  #         argv: [kubectl, -n, "${ns}", set, image,
+  #                "deployment/${name}", "*=${image}"]
+  #       - id: wait_rollout
+  #         argv: [kubectl, -n, "${ns}", rollout, status,
+  #                "deployment/${name}", "--timeout=180s"]
+  #
+  # spec.bash.argv, spec.bash.steps, and spec.builtin are MUTUALLY EXCLUSIVE.
+  # Loader rejects any manifest that declares two of them.
+
   # ---- output rendering ----
   output:
     parse: json

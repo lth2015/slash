@@ -195,3 +195,46 @@ def test_approvals_list_shows_pending_state(client):
     assert item["target"] == "deploy/web"
     assert item["steps"]
     assert item["risk"] in ("low", "medium", "high")
+
+
+# ── Multi-step writes (/app deploy) ─────────────────────────────────────
+
+def test_multi_step_write_approve_returns_per_step_results(client):
+    """Multi-step skills (spec.bash.steps — e.g. /app deploy) should surface
+    a per_step_results breakdown on the decide-approve response. Each step
+    carries its own exit_code / duration / argv / ISO timestamps."""
+    tc, _audit = client if isinstance(client, tuple) else (client, None)  # type: ignore[assignment]
+    # approve-path mock: every subprocess returns exit 0 with synthetic stdout.
+    stage = tc.post(
+        "/execute",
+        json={
+            "text": (
+                '/app deploy checkout --ns payments '
+                '--image "registry.internal/checkout:v1.0.8" '
+                '--reason rollforward'
+            ),
+        },
+    ).json()
+    assert stage["state"] == "awaiting_approval"
+    assert stage["danger"] is True
+    run_id = stage["run_id"]
+
+    r = tc.post(
+        f"/approvals/{run_id}/decide",
+        json={"decision": "approve", "yes_token": stage["profile_name"]},
+        headers={"X-Slash-Actor": "human-alice"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["state"] == "ok"
+    # Per-step breakdown present and well-formed.
+    steps = body.get("per_step_results") or []
+    assert len(steps) == 2
+    ids = [s["id"] for s in steps]
+    assert ids == ["set_image", "wait_rollout"]
+    for s in steps:
+        assert s["state"] == "ok"
+        assert s["exit_code"] == 0
+        assert s["argv"][0] == "kubectl"
+        assert s["started_at"]
+        assert s["ended_at"]

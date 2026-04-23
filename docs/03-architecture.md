@@ -85,6 +85,15 @@ FastAPI，接口极简：
 
 **关键：没有 shell 字符串拼接，只有 argv 数组传入 subprocess，避免命令注入。**
 
+#### Sequential multi-step writes（`spec.bash.steps`）
+
+一些 write skill 需要多次 CLI 调用——比如 `/app deploy` = `kubectl set image` + `kubectl rollout status`。runtime 暴露一个 `execute_steps(argv_list, env, timeout)` 入口：
+
+- 每个 step **仍然走同一个 `execute(argv, …)`**（docs/03 §2.4 的 single-entry 契约不变，源码 `test_runner.py::test_execute_steps_uses_same_execute` 护住）。
+- 任一步 `exit != 0` 或 `timed_out` 即短路，**后续 step 不再 spawn**。返回 `list[RunResult]` 只含实际跑过的步骤——调用方根据 `len(results) < len(argv_list)` 判断是否有 skipped step。
+- 每步独立 `started_at`/`ended_at`/`exit_code`/`stdout`/`stderr`，在 `/approvals/decide` 响应里聚合为 `per_step_results: [{id, state, exit_code, duration_ms, argv, started_at, ended_at}]`；audit JSONL 同字段记录。
+- Manifest 层 `bash.argv` / `bash.steps` / `builtin` 三者互斥（loader 强校验）。
+
 ### 2.5 LLM 集成（Gemini 2.5 Flash）
 唯一调用入口：`POST /explain`。
 

@@ -1,0 +1,19 @@
+cases:
+  - name: "danger plan staged with image diff"
+    # Image ref contains ':' — not an identifier char per the strict lexer —
+    # so it must be quoted. The ParsedCard surfaces this as a quoted string
+    # flag value.
+    input: '/app deploy checkout --ns payments --image "registry.internal/checkout:v1.0.8" --reason rollforward'
+    # The harness mock maps the FIRST subprocess invocation — for this write
+    # skill that's the plan-time jsonpath capture (spec.plan.argv), which
+    # returns the current image string so the diff can project before→after.
+    mock:
+      stdout: "current-image.txt"
+      exit: 0
+    expect:
+      state: "awaiting_approval"
+      danger: true
+      profile_name: "harness"
+      has_before: true    # captured from stdout
+      has_after: true     # ${image}
+      has_rollback_command: true
