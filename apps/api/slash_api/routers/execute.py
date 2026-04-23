@@ -236,6 +236,14 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
         plan_target = _render_plan_target(manifest, ctx)
         plan_steps = _render_plan_steps(manifest, ctx)
         plan_risk = _derive_risk(skill, manifest)
+        parsed = ast.to_dict()
+        plan_summary = {
+            "target": plan_target,
+            "steps": list(plan_steps),
+            "before": plan_before,
+            "after": plan_after,
+            "rollback_command": rollback_cmd,
+        }
         plan = PendingPlan(
             run_id=run_id,
             command=req.text,
@@ -260,6 +268,7 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             target=plan_target,
             steps=plan_steps,
             risk=plan_risk,
+            parsed_command=parsed,
         )
         put_plan(plan)
 
@@ -267,10 +276,13 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             "run_id": run_id,
             "user": user(),
             "command": req.text,
+            "parsed_command": parsed,
             "skill_id": skill.id,
             "skill_version": _skill_version(manifest),
             "mode": "write",
+            "risk": plan_risk,
             "state": "awaiting_approval",
+            "plan_summary": plan_summary,
             "profile": {"kind": ctx.profile_kind, "name": ctx.profile_name},
         })
 
@@ -298,6 +310,8 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
         )
 
     # Read → run now. Built-in vs bash branch.
+    read_risk = _derive_risk(skill, manifest)
+    parsed_read = ast.to_dict()
     builtin_name = manifest.get("spec", {}).get("builtin")
     if builtin_name:
         builtin_config = manifest.get("spec", {}).get("builtin_config") or {}
@@ -306,10 +320,13 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             "run_id": run_id,
             "user": user(),
             "command": req.text,
+            "parsed_command": parsed_read,
             "skill_id": skill.id,
             "skill_version": _skill_version(manifest),
             "mode": "read",
+            "risk": read_risk,
             "state": state,
+            "execution_argv": ["<builtin>", builtin_name],
             "profile": {"kind": ctx.profile_kind, "name": ctx.profile_name},
             "summary": err_msg or _brief_summary(outputs),
         })
@@ -340,10 +357,13 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             "run_id": run_id,
             "user": user(),
             "command": req.text,
+            "parsed_command": parsed_read,
             "skill_id": skill.id,
             "skill_version": _skill_version(manifest),
             "mode": "read",
+            "risk": read_risk,
             "state": "error",
+            "execution_argv": argv,
             "profile": {"kind": ctx.profile_kind, "name": ctx.profile_name},
             "summary": f"preflight failed: {pf_err}",
         })
@@ -366,14 +386,17 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
         "run_id": run_id,
         "user": user(),
         "command": req.text,
+        "parsed_command": parsed_read,
         "skill_id": skill.id,
         "skill_version": _skill_version(manifest),
         "mode": "read",
+        "risk": read_risk,
         "state": state,
         "exit_code": result.exit_code,
         "duration_ms": result.duration_ms,
         "started_at": result.started_at,
         "ended_at": result.ended_at,
+        "execution_argv": argv,
         "profile": {"kind": ctx.profile_kind, "name": ctx.profile_name},
         "stdout": result.stdout,
         "stderr": result.stderr,

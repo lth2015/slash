@@ -1,6 +1,6 @@
 # Slash 文档
 
-> **阶段：single-machine local PoC。** 一人一机一窗口；strict DSL only；LLM 不执行任何命令；写操作本机人审；审计 = 本地 `var/audit.jsonl` 追加。后端 API 只是本地适配层，不做扩张，不做服务化。
+> **阶段：single-machine local PoC。** 一人一机一窗口；strict DSL only；LLM 不执行任何命令；写操作本机人审；审计 = 本地 `.slash/audit/audit.jsonl` 追加。后端 API 只是本地适配层，不做扩张，不做服务化。
 >
 > **Slash 是一个 SRE 驾驶舱。** 一个窗口、一条命令行、人审批、bash 执行、LLM 辅助解释。不做仪表盘、不做多页面工作区、不做商业化。
 

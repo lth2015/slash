@@ -7,7 +7,7 @@
 | T1 | bash 命令注入（参数里夹带 shell meta） | Parser 早拦 + argv 数组传参，绝不 `shell=True`。见 [04 §7](./04-skills.md) |
 | T2 | 误执行破坏性操作 | 写类必审批；`danger: true` 二次确认输入 `YES`；`--reason` 强制 |
 | T3 | **LLM 欺骗**：生成"已执行"的假结果 / 建议绕过审批 / 把 summary 写成命令 | 见 §3 |
-| T4 | 审计抵赖 / 遗漏 | 所有 Turn 追加 `audit.jsonl`；哈希记录 stdout 指纹 |
+| T4 | 审计抵赖 / 遗漏 | 所有 Turn 追加 `.slash/audit/audit.jsonl`；哈希记录 stdout 指纹 |
 
 ## 2. HITL（Human-in-the-Loop）
 
@@ -123,7 +123,7 @@ Context Bar 有开关。关闭时：
 
 ### 4.1 文件
 
-`var/audit.jsonl`，一行一条 JSON，永不覆写。Demo 不做压缩 / 清理 / rotate。
+`.slash/audit/audit.jsonl`（gitignored，本地单机），一行一条 JSON，永不覆写。Demo 不做压缩 / 清理 / rotate。路径可用 `SLASH_AUDIT_PATH` 环境变量覆盖。
 
 ### 4.2 每次 Turn 的记录
 
@@ -132,21 +132,38 @@ Context Bar 有开关。关闭时：
   "ts": "2026-04-22T09:12:33.104Z",
   "run_id": "r_01HXYZ…",
   "user": "local",                          // OS user
-  "actor": "human-local",                   // who approved (for write)
-  "command": "/cluster prod scale web --replicas 10 --ns api --reason \"launch\"",
+  "actor": "human-local",                   // who approved (write only)
+  "command": "/cluster scale web --replicas 10 --ns api --reason \"launch\"",
+  "parsed_command": {                       // AST — the shape the runner actually dispatched
+    "namespace": "cluster", "target": null,
+    "skill_id": "cluster.scale", "noun": [], "verb": "scale",
+    "positional": ["web"],
+    "flags": {"replicas": 10, "ns": "api", "reason": "launch"},
+    "overrides": {"ctx": "prod"}
+  },
   "skill_id": "cluster.scale",
   "skill_version": "0.1.0",
   "mode": "write",
-  "state": "ok",                            // ok | rejected | error | timeout
-  "approved_at": "2026-04-22T09:12:40.000Z",
+  "risk": "medium",                          // derived: low | medium | high
+  "state": "ok",                             // ok | rejected | error | timeout | awaiting_approval
+  "plan_summary": {                          // frozen at plan time, survives the PendingPlan removal
+    "target": "deploy/web",
+    "steps": ["…", "…"],
+    "before": {"value": "4"}, "after": {"value": "10"},
+    "rollback_command": "/cluster scale web --replicas 4 --ns api --reason rollback"
+  },
+  "approval_decision": {                     // present on approve/reject events, absent on stage
+    "decision": "approve", "by": "human-local", "reason": "launch day"
+  },
   "approval_reason": "launch day",
-  "profile": { "kind": "k8s", "context": "prod" },
-  "plan": { "before": {"replicas": 4}, "after": {"replicas": 10} },
+  "profile": { "kind": "k8s", "name": "prod" },
+  "execution_argv": ["kubectl", "--context", "prod", "-n", "api", "scale", "deployment/web", "--replicas=10"],
   "stdout_sha256": "e3b0c44298fc…",
   "stderr_sha256": "",
   "exit_code": 0,
   "duration_ms": 842,
-  "llm_used": false,
+  "started_at": "2026-04-22T09:12:40.112Z",
+  "ended_at":   "2026-04-22T09:12:40.954Z",
   "redactions": ["Authorization"]
 }
 ```

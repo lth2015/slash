@@ -150,15 +150,35 @@ def decide_approval(
             "user": user(),
             "actor": x_slash_actor,
             "command": plan.command,
+            "parsed_command": plan.parsed_command,
             "skill_id": plan.skill_id,
             "skill_version": plan.skill_version,
             "mode": "write",
+            "risk": plan.risk,
             "state": "rejected",
+            "plan_summary": {
+                "target": plan.target,
+                "steps": list(plan.steps),
+                "before": plan.before,
+                "after": plan.after,
+                "rollback_command": plan.rollback_command or "",
+            },
+            "approval_decision": {
+                "decision": "reject",
+                "by": x_slash_actor,
+                "reason": req.comment or "",
+            },
             "approval_reason": req.comment,
             "profile": {"kind": plan.profile_kind, "name": plan.profile_name},
         })
         remove(run_id)
-        return DecisionResponse(run_id=run_id, decided=True, decision="reject", state="rejected")
+        return DecisionResponse(
+            run_id=run_id,
+            decided=True,
+            decision="reject",
+            state="rejected",
+            approval_state="rejected",
+        )
 
     # Approve path — replay preflight (resource may have changed since plan),
     # then run the real command.
@@ -175,12 +195,27 @@ def decide_approval(
                 "user": user(),
                 "actor": x_slash_actor,
                 "command": plan.command,
+                "parsed_command": plan.parsed_command,
                 "skill_id": plan.skill_id,
                 "skill_version": plan.skill_version,
                 "mode": "write",
+                "risk": plan.risk,
                 "state": "error",
+                "plan_summary": {
+                    "target": plan.target,
+                    "steps": list(plan.steps),
+                    "before": plan.before,
+                    "after": plan.after,
+                    "rollback_command": plan.rollback_command or "",
+                },
+                "approval_decision": {
+                    "decision": "approve",
+                    "by": x_slash_actor,
+                    "reason": plan.reason or req.comment or "",
+                },
                 "approval_reason": plan.reason or req.comment,
                 "profile": {"kind": plan.profile_kind, "name": plan.profile_name},
+                "execution_argv": list(plan.preflight_argv),
                 "summary": f"preflight blocked apply: {err_msg}",
             })
             remove(run_id)
@@ -202,17 +237,31 @@ def decide_approval(
         "user": user(),
         "actor": x_slash_actor,
         "command": plan.command,
+        "parsed_command": plan.parsed_command,
         "skill_id": plan.skill_id,
         "skill_version": plan.skill_version,
         "mode": "write",
+        "risk": plan.risk,
         "state": state,
+        "plan_summary": {
+            "target": plan.target,
+            "steps": list(plan.steps),
+            "before": plan.before,
+            "after": plan.after,
+            "rollback_command": plan.rollback_command or "",
+        },
+        "approval_decision": {
+            "decision": "approve",
+            "by": x_slash_actor,
+            "reason": plan.reason or req.comment or "",
+        },
         "approval_reason": plan.reason or req.comment,
-        "plan": {"before": plan.before, "after": plan.after},
         "profile": {"kind": plan.profile_kind, "name": plan.profile_name},
         "exit_code": result.exit_code,
         "duration_ms": result.duration_ms,
         "started_at": result.started_at,
         "ended_at": result.ended_at,
+        "execution_argv": list(plan.argv),
         "stdout": result.stdout,
         "stderr": result.stderr,
         "summary": err_msg or "applied",
@@ -239,6 +288,7 @@ def decide_approval(
         rollback_command=(plan.rollback_command or None) if state == "ok" else None,
         started_at=result.started_at or None,
         ended_at=result.ended_at or None,
+        approval_state="approved",
     )
 
 

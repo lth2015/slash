@@ -15,7 +15,7 @@
 - **No natural-language execution.** You can't type "restart the web pods". The LLM (Gemini 2.5 Flash) is used only to summarize or explain results the runtime has already produced — it can never execute, approve, or modify a plan. Its output always carries an `LLM·generated` label.
 - **Local-first.** The UI runs in your browser against a FastAPI process bound to `127.0.0.1`. The runtime spawns `aws` / `gcloud` / `kubectl` / `bash` under your own OS user, using credentials already on disk (`~/.aws/credentials`, `~/.config/gcloud`, `~/.kube/config`). Nothing is shipped to a server.
 - **Write requires local approval.** Every `mode: write` skill stages a `PlanCard` + `ApprovalCard` in the conversation stream; the bash command does not run until you click Approve in the same window. `danger: true` skills add a typed-YES step and a highlighted rollback hint.
-- **Append-only local audit.** Every turn appends one JSONL line to `var/audit.jsonl` — timestamp, user, command, skill id, mode, state, stdout/stderr SHA-256, approver. No rotation, no DB, no external sink. Query it via `/ops audit logs`.
+- **Append-only local audit.** Every turn appends one JSONL line to `.slash/audit/audit.jsonl` — timestamp, user, command, parsed AST, skill id, mode, risk, plan summary, approval decision, execution argv, stdout/stderr SHA-256, approver. No rotation, no DB, no external sink. Query it via `/ops audit logs`.
 
 ## Non-goals (this phase)
 
@@ -56,7 +56,7 @@ slash/
 │  └─ api/          # FastAPI process (bound to 127.0.0.1)
 ├─ skills/          # Skill YAMLs + bash templates + harness fixtures
 ├─ scripts/         # dev scripts (slash-up)
-├─ var/             # runtime state — audit.jsonl, HITL pending plans
+├─ .slash/          # local-machine state (gitignored) — audit/audit.jsonl
 └─ docs/            # spec-first documentation (read first)
 ```
 

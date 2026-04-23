@@ -35,6 +35,10 @@ class PendingPlan:
     target: str = ""
     steps: list[str] = field(default_factory=list)
     risk: str = "medium"
+    # Serialized AST (from parser.to_dict) captured at plan time. Stashed
+    # here so the approve/reject audit events carry the SAME parsed shape
+    # as the stage event, without re-parsing.
+    parsed_command: dict = field(default_factory=dict)
     # profile summary for audit
     profile_kind: str | None = None
     profile_name: str | None = None

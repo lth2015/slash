@@ -15,10 +15,12 @@ from pathlib import Path
 from typing import Any
 
 _AUDIT_PATH_ENV = "SLASH_AUDIT_PATH"
-# repo_root / var / audit.jsonl — resolve from this file's location, not CWD.
-# parents[0]=audit, [1]=slash_api, [2]=api, [3]=apps, [4]=repo root
+# repo_root / .slash / audit / audit.jsonl — resolve from this file's location,
+# not CWD. parents[0]=audit, [1]=slash_api, [2]=api, [3]=apps, [4]=repo root.
+# The `.slash/` prefix is gitignored — audit logs are local-machine artifacts
+# per docs/05 §4, never committed.
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_DEFAULT_PATH = _REPO_ROOT / "var" / "audit.jsonl"
+_DEFAULT_PATH = _REPO_ROOT / ".slash" / "audit" / "audit.jsonl"
 
 _lock = threading.Lock()
 
@@ -83,6 +85,20 @@ def append(event: dict[str, Any]) -> None:
             new, hits = redact(ev[key])
             ev[key] = new
             redactions.update(hits)
+
+    # execution_argv is a list of strings (argv passed to subprocess). Redact
+    # each element separately so secrets passed via --token=… or similar can't
+    # survive to disk.
+    if "execution_argv" in ev and isinstance(ev["execution_argv"], list):
+        cleaned: list[str] = []
+        for item in ev["execution_argv"]:
+            if not isinstance(item, str):
+                cleaned.append(str(item))
+                continue
+            new, hits = redact(item)
+            cleaned.append(new)
+            redactions.update(hits)
+        ev["execution_argv"] = cleaned
 
     if "stdout" in ev:
         raw = ev.pop("stdout") or ""
