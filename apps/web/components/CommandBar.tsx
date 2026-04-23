@@ -29,7 +29,22 @@ export type ParseStatus =
   | { kind: "idle" }
   | { kind: "parsing" }
   | { kind: "ok"; skillId: string; mode: "read" | "write"; danger: boolean }
-  | { kind: "error"; code: string; message: string; offset: number; length: number; suggestions: string[] };
+  | { kind: "error"; code: string; message: string; offset: number; length: number; suggestions: string[] }
+  // Client-side meta commands — UI view control only. They never touch the
+  // parser, the runner, or the audit log. Today: `/clear` to wipe the
+  // conversation view.
+  | { kind: "meta"; command: "clear"; hint: string };
+
+/** Literal meta commands recognized in the CommandBar. Kept in one place so
+ *  the listener, StatusLine, and page.tsx submit handler agree on the set. */
+export const META_COMMANDS: Record<string, string> = {
+  "/clear": "wipe the conversation view (audit keeps its receipts)",
+};
+
+export function isMetaCommand(text: string): string | null {
+  const t = text.trim();
+  return t in META_COMMANDS ? t : null;
+}
 
 interface Props {
   value: string;
@@ -267,6 +282,18 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
         u.view.dispatch({ effects: [setModeEffect.of({}), setErrorEffect.of(null)] });
         return;
       }
+      // Meta commands short-circuit the parser: no red wavy underline for
+      // "UnknownNamespace", just a soft hint in the status line.
+      const metaCmd = isMetaCommand(text);
+      if (metaCmd) {
+        u.view.dispatch({ effects: [setModeEffect.of({}), setErrorEffect.of(null)] });
+        setStatus({
+          kind: "meta",
+          command: "clear",
+          hint: META_COMMANDS[metaCmd],
+        });
+        return;
+      }
       setStatus({ kind: "parsing" });
       debounce = setTimeout(() => {
         if (inFlight) inFlight.abort();
@@ -452,6 +479,18 @@ function StatusLine({ status }: { status: ParseStatus }) {
           </span>
           <span className="text-border">·</span>
           <span className="text-text-secondary">{status.skillId}</span>
+        </span>
+      )}
+      {status.kind === "meta" && (
+        <span className="flex items-center gap-2 text-text-primary">
+          <span
+            className="inline-flex items-center h-5 px-2 rounded-full text-caption tracking-chip uppercase font-semibold bg-brand-soft text-brand-strong"
+          >
+            meta
+          </span>
+          <span className="text-text-secondary">press</span>
+          <kbd className="px-1.5 h-5 inline-flex items-center rounded border border-border-subtle bg-surface-sub font-mono text-caption">↵</kbd>
+          <span className="text-text-secondary">to {status.hint}</span>
         </span>
       )}
       {status.kind === "error" && (

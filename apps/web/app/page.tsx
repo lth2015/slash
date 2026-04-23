@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 
-import { CommandBar } from "@/components/CommandBar";
+import { CommandBar, isMetaCommand } from "@/components/CommandBar";
 import { ContextBar } from "@/components/ContextBar";
 import { Conversation, Turn } from "@/components/Conversation";
 import { UnpinnedPrompt } from "@/components/UnpinnedPrompt";
@@ -19,6 +19,15 @@ export default function Home() {
   const submit = useCallback(async (command: string) => {
     // Clear input for next turn
     setText("");
+
+    // Meta commands — client-side view control, never hit the parser, the
+    // runner, or the audit log. Today: `/clear` wipes the conversation view;
+    // audit.jsonl keeps the receipts so "did I run that" is still answerable
+    // via `/ops audit logs`.
+    if (isMetaCommand(command) === "/clear") {
+      setTurns([]);
+      return;
+    }
 
     try {
       const r = await fetch("/api/execute", {
