@@ -1,0 +1,11 @@
+cases:
+  - name: "happy path — healthy deployment"
+    input: "/app status checkout --ns payments"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      body_equals:
+        skill_id: "app.status"
+        mode: "read"

@@ -1,0 +1,39 @@
+{
+  "kind": "Deployment",
+  "apiVersion": "apps/v1",
+  "metadata": {
+    "name": "checkout",
+    "namespace": "payments",
+    "generation": 7,
+    "creationTimestamp": "2026-03-01T00:00:00Z"
+  },
+  "spec": {
+    "replicas": 3,
+    "strategy": { "type": "RollingUpdate" }
+  },
+  "status": {
+    "observedGeneration": 7,
+    "replicas": 3,
+    "updatedReplicas": 3,
+    "readyReplicas": 3,
+    "availableReplicas": 3,
+    "conditions": [
+      {
+        "type": "Available",
+        "status": "True",
+        "lastUpdateTime": "2026-04-22T09:12:33Z",
+        "lastTransitionTime": "2026-04-22T09:12:33Z",
+        "reason": "MinimumReplicasAvailable",
+        "message": "Deployment has minimum availability."
+      },
+      {
+        "type": "Progressing",
+        "status": "True",
+        "lastUpdateTime": "2026-04-22T09:12:40Z",
+        "lastTransitionTime": "2026-04-22T09:12:00Z",
+        "reason": "NewReplicaSetAvailable",
+        "message": "ReplicaSet \"checkout-7b9c\" has successfully progressed."
+      }
+    ]
+  }
+}

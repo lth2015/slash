@@ -98,24 +98,21 @@ Ctx 解析：每条命令都接受可选 `--ctx <name>` 覆盖，否则读 sessi
 
 > `/ops diagnose` 的"LLM 分析"仅解读数据，不会触发任何写操作。
 
-### 4.4 `/app`（原子集合 · 尚未实现，等选定后端 CLI）
+### 4.4 `/app`（原子集合 · kubectl 为主线后端）
 
-本阶段只做**原子动作**——每条命令一次后端 CLI 调用。以下只列原子；编排层（`ship`/`canary`/`pipeline run`/`predict`/`optimize`/`diagnose`）都不在本阶段，见 `Draft.md` 的 `DEFER` 标注。
+本阶段只做**原子动作**——每条命令一次后端 CLI 调用。backend 统一选 **kubectl**（零新依赖，与 `/cluster` 对齐）。编排层（`ship`/`canary`/`pipeline run`/`predict`/`optimize`/`diagnose`）都不在本阶段，见 `Draft.md` 的 `DEFER` 标注。
 
-| 命令 | 读/写 | 可能的 bash 对应（待敲定） |
-| --- | --- | --- |
-| `/app list` | R | `helm list -A -o json` · 或 `argocd app list -o json` · 或读本地应用登记表 |
-| `/app get <name>` | R | 同上，单个 |
-| `/app config get <name> --env <env>` | R | `kubectl --context <env> -n <ns> get configmap <name> -o json` |
-| `/app config diff <name> --env <env> --file <path>` | R | `kubectl --context <env> diff -f <path>` |
-| `/app config update <name> --env <env> --file <path> --reason "<t>"` | **W** | `kubectl --context <env> apply -f <path>` |
-| `/app rollback <name> --env <env> --reason "<t>"` | **W (danger)** | `kubectl --context <env> -n <ns> rollout undo deployment/<name>` |
-| `/app pipeline list [--env <env>]` | R | `gh run list --workflow <app>.yml` · 或 `glab ci list` |
-| `/app pipeline describe <job>` | R | `gh run view <job> --json ...` |
-| `/app pipeline trace <job>` | R | `gh run view <job> --log` |
-| `/app pipeline stop <job> --reason "<t>"` | **W** | `gh run cancel <job>` |
+| 命令 | 读/写 | bash 对应 | 状态 |
+| --- | --- | --- | --- |
+| `/app status <name> --ns <n>` | R | `kubectl get deployment <name> -o json` → 取 `.status` | ✅ 已实现 |
+| `/app deploy <name> --env <env> --image <ref> --reason "<t>"` | **W · danger** | step 1: `kubectl set image deployment/<name> *=<ref>`  · step 2: `kubectl rollout status deployment/<name>` | 🟡 待实现（需要 runtime 的 sequential bash.steps） |
+| `/app rollback <name> --env <env> --reason "<t>"` | **W · danger** | `kubectl rollout undo deployment/<name>` | ❌ 未实现 |
+| `/app config get <name> --ns <n>` | R | `kubectl get configmap <name> -o json` | ❌ 未实现 |
+| `/app config diff <name> --file <path>` | R | `kubectl diff -f <path>` | ❌ 未实现 |
+| `/app config update <name> --file <path> --reason "<t>"` | **W** | `kubectl apply -f <path>` | ❌ 未实现 |
+| `/app list` | R | 读本地应用登记表 `~/.config/slash/apps.yaml` 或由 helm/argocd 提供 | ❌ 未实现（backend 二选一或三选一待定） |
 
-> 后端 CLI 选型未定：kubectl / helm / argocd / gh / glab 各有场景。下一步需选定主线后端再落 skill YAML。
+> kubectl 路线的好处：`/app` 命令和 `/cluster` 共享 k8s profile、`--ctx` 语义、argv-safety；skill YAML 只是 `/cluster` 的更高级视角（target = 一个 app 而非一个原子资源）。
 
 ### 4.5 `/ctx`（会话上下文 · 内建 skill，已实现）
 
