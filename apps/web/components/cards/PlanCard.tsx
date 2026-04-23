@@ -2,6 +2,9 @@ import { ArrowRight, CircleDashed } from "lucide-react";
 
 import { Card } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
+import { cn } from "@/lib/cn";
+
+export type ApprovalState = "pending" | "approved" | "rejected";
 
 export interface PlanData {
   run_id: string;
@@ -22,19 +25,46 @@ export interface PlanData {
     name: string;
     since_seconds: number;
   } | null;
+  /** HITL state machine — from the server on /execute, updated locally on
+   *  /approvals decide. The chip is always visible so the reviewer can see
+   *  where we are in the pending → approved / rejected flow. */
+  approval_state?: ApprovalState;
+  /** Planner narration — rendered from spec.plan.target / spec.plan.steps
+   *  at plan time. Optional: older skills without plan.steps render the
+   *  card without this block (no regression). */
+  target?: string | null;
+  steps?: string[];
+  risk?: "low" | "medium" | "high";
 }
 
 export function PlanCard({ plan }: { plan: PlanData; attached?: boolean }) {
+  const approvalState: ApprovalState = plan.approval_state ?? "pending";
   return (
     <Card rail={plan.danger ? "danger" : "write"}>
       {plan.drift && <DriftBanner drift={plan.drift} />}
       <div className="p-5 space-y-4">
-        <header className="flex items-center gap-2">
+        <header className="flex items-center gap-2 flex-wrap">
           <Chip kind={plan.danger ? "danger" : "write"}>
             {plan.danger ? "DANGER" : "PLAN"}
           </Chip>
+          <ApprovalStateChip state={approvalState} />
+          {plan.risk && <RiskChip risk={plan.risk} />}
           <span className="font-mono text-small text-text-secondary">{plan.skill_id}</span>
         </header>
+
+        {plan.target && (
+          <div className="font-mono text-lead text-text-primary">{plan.target}</div>
+        )}
+
+        {plan.steps && plan.steps.length > 0 && (
+          <ol className="text-small text-text-secondary space-y-1.5 list-decimal list-inside pl-1">
+            {plan.steps.map((s, i) => (
+              <li key={i} className="font-normal">
+                <span className="text-text-primary">{s}</span>
+              </li>
+            ))}
+          </ol>
+        )}
 
         {(plan.before || plan.after) && (
           <div className="font-mono text-small space-y-2 bg-surface-sub rounded-lg p-4 border border-border-subtle">
@@ -68,6 +98,45 @@ export function PlanCard({ plan }: { plan: PlanData; attached?: boolean }) {
         </div>
       </div>
     </Card>
+  );
+}
+
+function ApprovalStateChip({ state }: { state: ApprovalState }) {
+  if (state === "approved") {
+    return (
+      <span className="inline-flex items-center gap-1.5 h-6 px-2 rounded-full bg-ok-soft border border-ok/40 text-ok text-caption tracking-chip font-semibold uppercase">
+        <span className="w-1.5 h-1.5 rounded-full bg-ok" aria-hidden />
+        approved
+      </span>
+    );
+  }
+  if (state === "rejected") {
+    return (
+      <span className="inline-flex items-center gap-1.5 h-6 px-2 rounded-full bg-danger-soft border border-danger/40 text-danger text-caption tracking-chip font-semibold uppercase">
+        <span className="w-1.5 h-1.5 rounded-full bg-danger" aria-hidden />
+        rejected
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 h-6 px-2 rounded-full bg-pending-soft border border-pending/40 text-pending text-caption tracking-chip font-semibold uppercase">
+      <span className="w-1.5 h-1.5 rounded-full bg-pending animate-pulse" aria-hidden />
+      pending
+    </span>
+  );
+}
+
+function RiskChip({ risk }: { risk: "low" | "medium" | "high" }) {
+  const cls =
+    risk === "high"
+      ? "bg-danger-soft border-danger/40 text-danger"
+      : risk === "medium"
+        ? "bg-warn-soft border-warn/40 text-warn"
+        : "bg-ok-soft border-ok/40 text-ok";
+  return (
+    <span className={cn("inline-flex items-center h-6 px-2 rounded-full border text-caption tracking-chip font-semibold uppercase", cls)}>
+      risk · {risk}
+    </span>
   );
 }
 

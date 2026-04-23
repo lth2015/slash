@@ -57,6 +57,10 @@ export default function Home() {
               profile_kind: body.profile_kind ?? null,
               profile_name: body.profile_name ?? null,
               drift: body.drift ?? null,
+              approval_state: body.approval_state ?? "pending",
+              target: body.target ?? null,
+              steps: body.steps ?? [],
+              risk: body.risk ?? undefined,
             },
           },
         ]);
@@ -132,6 +136,7 @@ export default function Home() {
           return {
             ...t,
             stage: "done",
+            plan: { ...t.plan, approval_state: "approved" },
             result: {
               run_id: runId,
               skill_id: t.plan.skill_id,
@@ -149,6 +154,7 @@ export default function Home() {
         return {
           ...t,
           stage: "rejected",
+          plan: { ...t.plan, approval_state: "rejected" },
           rejection_reason: p.error_message ?? undefined,
         };
       })
@@ -158,7 +164,9 @@ export default function Home() {
   const onRejected = useCallback((runId: string) => {
     setTurns((list) =>
       list.map((t) =>
-        t.kind === "write" && t.plan.run_id === runId ? { ...t, stage: "rejected" } : t
+        t.kind === "write" && t.plan.run_id === runId
+          ? { ...t, stage: "rejected", plan: { ...t.plan, approval_state: "rejected" } }
+          : t
       )
     );
   }, []);

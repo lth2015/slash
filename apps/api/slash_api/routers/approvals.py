@@ -34,6 +34,7 @@ class ApprovalItem(BaseModel):
     steps: list[str] = []
     risk: str = "medium"
     approval_required: bool = True
+    approval_state: str = "pending"
 
 
 class ApprovalList(BaseModel):
@@ -62,6 +63,8 @@ class DecisionResponse(BaseModel):
     # ISO-8601 UTC timestamps of the subprocess, if it ran (approve path).
     started_at: str | None = None
     ended_at: str | None = None
+    # HITL state after this decision: "approved" or "rejected".
+    approval_state: str | None = None
     # Present only on state=ok for a write skill that declared an executable
     # spec.rollback. Client can wire a "Roll back" button that pre-fills the
     # CommandBar with this string; the rollback still goes through /execute +
@@ -89,6 +92,7 @@ def list_approvals() -> ApprovalList:
             steps=list(p.steps),
             risk=p.risk,
             approval_required=(p.mode == "write"),
+            approval_state=p.approval_state,
         )
         for p in list_pending()
     ]

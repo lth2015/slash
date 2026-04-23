@@ -72,6 +72,11 @@ class ExecuteResponse(BaseModel):
     steps: list[str] | None = None
     risk: str | None = None
     approval_required: bool = False
+    # HITL state machine — "pending" for newly-staged writes, "approved" /
+    # "rejected" only ever observed on approval decide responses, never here.
+    # Clients can rely on this field to drive UI state without inferring
+    # from `state == "awaiting_approval"`.
+    approval_state: str | None = None
     # Resolved profile — the ctx/profile this run will target. For danger
     # skills the Approval card requires the reviewer to type this back
     # verbatim as the confirmation token.
@@ -289,6 +294,7 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
             steps=list(plan_steps),
             risk=plan_risk,
             approval_required=True,
+            approval_state="pending",
         )
 
     # Read → run now. Built-in vs bash branch.

@@ -57,6 +57,18 @@ class PendingPlan:
     decided_by: str | None = None
     decision_reason: str | None = None
 
+    @property
+    def approval_state(self) -> str:
+        """Explicit state label for the UI and audit:
+           pending  — plan staged, no decision yet
+           approved — human approved; the runtime either is running or has run
+           rejected — human rejected; runtime will never run this plan"""
+        if self.decision == "approve":
+            return "approved"
+        if self.decision == "reject":
+            return "rejected"
+        return "pending"
+
     def to_dict(self) -> dict:
         d = asdict(self)
         # redact env (it may contain profile hints only, but be safe)
