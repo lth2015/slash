@@ -12,7 +12,18 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4455", "http://127.0.0.1:4455"],
+    # Loopback + RFC1918 private ranges (10/8, 172.16/12, 192.168/16) so
+    # peers on the office LAN can hit this instance directly. Public
+    # internet origins are still blocked. Audit records the OS user of
+    # the API process as the actor — LAN trust is the security boundary.
+    allow_origin_regex=(
+        r"^https?://"
+        r"(localhost|127\.0\.0\.1"
+        r"|10(\.\d{1,3}){3}"
+        r"|192\.168(\.\d{1,3}){2}"
+        r"|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}"
+        r")(:\d+)?$"
+    ),
     allow_methods=["GET", "POST"],
     allow_headers=["*", "X-Slash-Actor"],
 )

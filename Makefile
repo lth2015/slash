@@ -35,7 +35,7 @@ dev:
 	./scripts/slash-up
 
 dev-api: $(API_VENV)
-	$(API_PY) -m uvicorn slash_api.main:app --reload --host 127.0.0.1 --port 4456
+	$(API_PY) -m uvicorn slash_api.main:app --reload --host 0.0.0.0 --port 4456
 
 dev-web:
 	pnpm --filter @slash/web dev

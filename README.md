@@ -13,7 +13,7 @@
 
 - **Strict DSL only.** Every input is parsed against an EBNF grammar and a Skill registry. If it doesn't parse, it doesn't run. There is no fallback to "what did you probably mean".
 - **No natural-language execution.** You can't type "restart the web pods". The LLM (Gemini 2.5 Flash) is used only to summarize or explain results the runtime has already produced — it can never execute, approve, or modify a plan. Its output always carries an `LLM·generated` label.
-- **Local-first.** The UI runs in your browser against a FastAPI process bound to `127.0.0.1`. The runtime spawns `aws` / `gcloud` / `kubectl` / `bash` under your own OS user, using credentials already on disk (`~/.aws/credentials`, `~/.config/gcloud`, `~/.kube/config`). Nothing is shipped to a server.
+- **Local-first.** The UI runs in your browser against a FastAPI process on your own machine (defaults to `0.0.0.0:4456` so office-LAN peers can reach it; loopback-only with `SLASH_API_HOST=127.0.0.1 ./scripts/slash-up`). The runtime spawns `aws` / `gcloud` / `kubectl` / `bash` under your own OS user, using credentials already on disk (`~/.aws/credentials`, `~/.config/gcloud`, `~/.kube/config`). Nothing is shipped to a hosted server — your LAN is the trust boundary.
 - **Write requires local approval.** Every `mode: write` skill stages a `PlanCard` + `ApprovalCard` in the conversation stream; the bash command does not run until you click Approve in the same window. `danger: true` skills add a typed-YES step and a highlighted rollback hint.
 - **Append-only local audit.** Every turn appends one JSONL line to `.slash/audit/audit.jsonl` — timestamp, user, command, parsed AST, skill id, mode, risk, plan summary, approval decision, execution argv, stdout/stderr SHA-256, approver. No rotation, no DB, no external sink. Query it via `/ops audit logs`.
 
@@ -53,7 +53,7 @@ Web at http://localhost:4455 · local FastAPI at http://localhost:4456.
 slash/
 ├─ apps/
 │  ├─ web/          # Next.js UI — one window, no routing
-│  └─ api/          # FastAPI process (bound to 127.0.0.1)
+│  └─ api/          # FastAPI process (0.0.0.0:4456 by default; LAN-accessible)
 ├─ skills/          # Skill YAMLs + bash templates + harness fixtures
 ├─ scripts/         # dev scripts (slash-up)
 ├─ .slash/          # local-machine state (gitignored) — audit/audit.jsonl

@@ -4,7 +4,7 @@
 
 **这是一个 single-machine local PoC。** 下面图里写"FastAPI Backend"只是因为 UI 通过 HTTP 调它——它不是服务、不对外暴露、不做 auth、也不为"演进成服务"留接口。运行形态固定是：
 
-- 单 OS 用户 · 单浏览器会话 · 单 FastAPI 进程 · 绑定 `127.0.0.1`
+- 单 OS 用户 · 单 FastAPI 进程 · 默认 `0.0.0.0:4456`（便于办公网内协作访问；可用 `SLASH_API_HOST=127.0.0.1` 退回 loopback-only）。**办公网 = 信任边界**；audit 里 actor 字段始终是运行 slash-up 的 OS 用户，不做按调用方鉴权
 - 端点数量稳定在 §2.2 列表，不做扩张；字段/版本不构成对外契约
 - 没有 DB，没有外部 sink，状态 = 内存 + `.slash/audit/audit.jsonl`
 - 没有编排引擎：一个 Skill 对应一次 `subprocess.run(argv, …)`
@@ -26,7 +26,7 @@
                                 │ REST + WebSocket
                                 ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│              FastAPI (localhost adapter · 127.0.0.1 only)             │
+│              FastAPI (0.0.0.0:4456 · LAN-reachable by default)        │
 │  /parse → Parser + Skill Registry (loaded from skills/)              │
 │  /execute → Runtime (bash) ──► audit.jsonl                           │
 │  /approve → HITL (pending plan table)                                │

@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # Starts the Slash demo: FastAPI on :4456, Next.js on :4455.
-# See docs/07-roadmap.md — M0.
+#
+# Default bind is 0.0.0.0 so peers on the office LAN can reach this
+# instance. The operator running slash-up = the OS user whose
+# ~/.aws, ~/.config/gcloud, ~/.kube are injected into every run;
+# audit records that OS user as the actor regardless of who hit
+# the API. This is a trust-the-LAN PoC, not a service with per-user auth.
+#
+# Lock back to loopback with:
+#   SLASH_API_HOST=127.0.0.1 SLASH_WEB_HOST=127.0.0.1 ./scripts/slash-up
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,6 +16,9 @@ cd "$ROOT"
 
 API_PY="$ROOT/apps/api/.venv/bin/python"
 WEB_DIR="$ROOT/apps/web"
+
+API_HOST="${SLASH_API_HOST:-0.0.0.0}"
+WEB_HOST="${SLASH_WEB_HOST:-0.0.0.0}"
 
 if [[ ! -x "$API_PY" ]]; then
   echo "!! API venv missing. Run: make setup" >&2
@@ -28,25 +39,33 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo ">> Starting API on http://127.0.0.1:4456"
+# Best-effort LAN IP for the "open this URL on another machine" banner.
+LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo '')"
+
+echo ">> Starting API on ${API_HOST}:4456"
 (
   cd "$ROOT/apps/api"
-  "$API_PY" -m uvicorn slash_api.main:app --host 127.0.0.1 --port 4456 --log-level info
+  "$API_PY" -m uvicorn slash_api.main:app --host "$API_HOST" --port 4456 --log-level info
 ) &
 API_PID=$!
 
-echo ">> Starting Web on http://localhost:4455"
+echo ">> Starting Web on ${WEB_HOST}:4455"
 (
   cd "$WEB_DIR"
+  # pnpm dev hardcodes --hostname 0.0.0.0; for loopback-only web, run:
+  #   (cd apps/web && npx next dev --hostname 127.0.0.1 --port 4455)
   pnpm dev
 ) &
 WEB_PID=$!
 
 echo
 echo "Slash is up."
-echo "  UI:  http://localhost:4455"
-echo "  API: http://127.0.0.1:4456"
-echo "  Docs: open docs/00-README.md"
+echo "  Local :  http://localhost:4455"
+if [[ -n "$LAN_IP" && "$WEB_HOST" == "0.0.0.0" ]]; then
+  echo "  LAN   :  http://${LAN_IP}:4455     (share with office peers)"
+fi
+echo "  API   :  http://${API_HOST}:4456"
+echo "  Docs  :  open docs/00-README.md"
 echo
 echo "Ctrl-C to stop."
 

@@ -36,7 +36,7 @@ SRE 在本机跑一个单窗口驾驶舱，用严格命令语言操作 AWS / GCP
 
 - **不做** 自然语言执行入口。LLM 不解释命令去执行。
 - **不做** 多用户 / SSO / RBAC / 多租户。本机一个 OS 用户、一次浏览器会话。
-- **不做** API 扩张。后端 FastAPI 只是单窗口 UI 的本机适配层（绑定 `127.0.0.1`），端点是内部接缝、不是对外契约，也不会演进为"服务"。
+- **不做** API 扩张。后端 FastAPI 只是单窗口 UI 的本机适配层（默认 `0.0.0.0:4456` 以便办公网内远程使用；`SLASH_API_HOST=127.0.0.1` 可退回纯 loopback），端点是内部接缝、不是对外契约，也不会演进为公网 "服务"。办公网是信任边界——审计里的 actor 永远是运行 slash-up 的 OS 用户，不做按调用方鉴权。
 - **不做** 持久化数据库。内存 + 一个 `.slash/audit/audit.jsonl` 就够了。HITL pending plan 进程内一张 dict。
 - **不做** 编排引擎。一个 Skill = 一条原子 bash 调用（一次 `aws`/`kubectl`/`gcloud`）。没有 DAG、没有工作流、没有重试策略（除单条 skill 的 timeout）、没有调度器。
 - **不做** Skill 市场 / Skill Browser / Skill 版本化存储。Skills 是本地文件、改了就生效。
