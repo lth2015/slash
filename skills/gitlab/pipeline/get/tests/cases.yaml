@@ -1,0 +1,8 @@
+cases:
+  - name: "happy path"
+    input: "/gitlab pipeline get 1001 --project foo/bar"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"

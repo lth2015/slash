@@ -1,0 +1,43 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.ebs.orphans
+  name: "List orphan EBS volumes"
+  description: "EBS volumes in `available` state (not attached to any instance). Often forgotten after EC2 terminate."
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [ebs], verb: orphans }
+  mode: read
+  timeout: 30s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+
+  bash:
+    # available = unattached. Includes size + create time so reviewers can
+    # see how much is drifting + how old.
+    argv:
+      - aws
+      - ec2
+      - describe-volumes
+      - --region
+      - "${region}"
+      - --filters
+      - "Name=status,Values=available"
+      - --output
+      - json
+
+  output:
+    parse: json
+    path: "Volumes[]"
+    kind: table
+    columns:
+      - { key: VolumeId,   label: "ID" }
+      - { key: Size,       label: "GB" }
+      - { key: VolumeType, label: "Type" }
+      - { key: State,      label: "State", renderer: state-badge }
+      - { key: CreateTime, label: "Created", renderer: relative-time }
+      - { key: AvailabilityZone, label: "AZ" }

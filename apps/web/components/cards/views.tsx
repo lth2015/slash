@@ -6,7 +6,7 @@
 // crashing so the tool is resilient to upstream format drift.
 
 import { Fragment, useMemo, useState } from "react";
-import { AlertTriangle, Cloud, Inbox, Pin, Server } from "lucide-react";
+import { AlertTriangle, Cloud, GitBranch, Inbox, Pin, Server } from "lucide-react";
 
 import { Chip } from "@/components/ui/Chip";
 import { cn } from "@/lib/cn";
@@ -944,8 +944,9 @@ function SgRuleSection({ title, rules }: { title: string; rules: FlatRule[] }) {
 //     k8s_contexts: string[],
 //     aws_profiles: string[],
 //     gcp_configurations: string[],
+//     gitlab_profiles: string[],
 //     errors: string[],
-//     current: { k8s?: {name, tier}, aws?: {...}, gcp?: {...} }
+//     current: { k8s?: {name, tier}, aws?: {...}, gcp?: {...}, gitlab?: {...} }
 //   }
 // A long EKS cluster ARN is opaque at a glance, so we render the final
 // path segment as the primary label with the full ARN on hover/below.
@@ -954,6 +955,7 @@ interface CtxInventoryPayload {
   k8s_contexts?: string[];
   aws_profiles?: string[];
   gcp_configurations?: string[];
+  gitlab_profiles?: string[];
   errors?: string[];
   current?: CtxCurrent;
 }
@@ -961,6 +963,7 @@ interface CtxCurrent {
   k8s?: { name?: string; tier?: string | null } | null;
   aws?: { name?: string; tier?: string | null } | null;
   gcp?: { name?: string; tier?: string | null } | null;
+  gitlab?: { name?: string; tier?: string | null } | null;
 }
 
 export function CtxInventory({
@@ -972,7 +975,7 @@ export function CtxInventory({
 }) {
   const payload = (value ?? {}) as CtxInventoryPayload;
   const sections: Array<{
-    kind: "k8s" | "aws" | "gcp";
+    kind: "k8s" | "aws" | "gcp" | "gitlab";
     title: string;
     icon: typeof Cloud;
     items: string[];
@@ -1002,6 +1005,14 @@ export function CtxInventory({
       items: payload.gcp_configurations ?? [],
       current: payload.current?.gcp?.name ?? null,
       currentTier: payload.current?.gcp?.tier ?? null,
+    },
+    {
+      kind: "gitlab",
+      title: "GitLab",
+      icon: GitBranch,
+      items: payload.gitlab_profiles ?? [],
+      current: payload.current?.gitlab?.name ?? null,
+      currentTier: payload.current?.gitlab?.tier ?? null,
     },
   ];
 
@@ -1071,7 +1082,7 @@ function CtxSection({
   onAction,
 }: {
   section: {
-    kind: "k8s" | "aws" | "gcp";
+    kind: "k8s" | "aws" | "gcp" | "gitlab";
     title: string;
     icon: typeof Cloud;
     items: string[];

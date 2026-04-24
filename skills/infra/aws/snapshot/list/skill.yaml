@@ -1,0 +1,42 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.snapshot.list
+  name: "List EBS snapshots"
+  description: "EBS snapshots owned by the current account. Useful for spotting redundant backups and cost drift."
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [snapshot], verb: list }
+  mode: read
+  timeout: 60s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+    - { name: owner,  flag: --owner,  type: string, default: "self" }
+
+  bash:
+    argv:
+      - aws
+      - ec2
+      - describe-snapshots
+      - --region
+      - "${region}"
+      - --owner-ids
+      - "${owner}"
+      - --output
+      - json
+
+  output:
+    parse: json
+    path: "Snapshots[]"
+    kind: table
+    columns:
+      - { key: SnapshotId, label: "ID" }
+      - { key: VolumeId,   label: "From volume" }
+      - { key: VolumeSize, label: "GB" }
+      - { key: State,      label: "State", renderer: state-badge }
+      - { key: StartTime,  label: "Started", renderer: relative-time }
+      - { key: Description, label: "Description" }

@@ -1,0 +1,12 @@
+cases:
+  - name: "happy path"
+    input: "/infra aws snapshot list --region ap-northeast-1"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 2
+      outputs_row0:
+        SnapshotId: "snap-0aabbccdd11223344"
+        State: "completed"

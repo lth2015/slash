@@ -14,7 +14,7 @@ spec:
   profile: { kind: none }
 
   args:
-    - { name: kind, type: string, positional: true, required: true, enum: [k8s, aws, gcp] }
+    - { name: kind, type: string, positional: true, required: true, enum: [k8s, aws, gcp, gitlab] }
     - { name: name, type: string, positional: true, required: true }
     - { name: tier, flag: --tier, type: string, enum: [critical, staging, safe], default: "safe" }
 

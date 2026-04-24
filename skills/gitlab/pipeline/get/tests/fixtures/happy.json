@@ -1,0 +1,18 @@
+{
+  "id": 1001,
+  "iid": 42,
+  "project_id": 12,
+  "sha": "abc123def456",
+  "ref": "main",
+  "status": "success",
+  "source": "push",
+  "created_at": "2026-04-24T03:12:00Z",
+  "updated_at": "2026-04-24T03:18:33Z",
+  "started_at": "2026-04-24T03:12:03Z",
+  "finished_at": "2026-04-24T03:18:33Z",
+  "duration": 390,
+  "queued_duration": 3,
+  "user": {"id": 7, "username": "li.dawei", "name": "Li Dawei"},
+  "web_url": "https://gitlab.example.com/foo/bar/-/pipelines/1001",
+  "yaml_errors": null
+}

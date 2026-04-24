@@ -1,0 +1,42 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: gitlab.pipelines.list
+  name: "List GitLab pipelines"
+  description: "Recent CI pipelines for a project. Passes through `glab api` — needs a pinned gitlab profile."
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: gitlab, noun: [pipelines], verb: list }
+  mode: read
+  timeout: 30s
+  profile: { kind: gitlab, required: true }
+
+  args:
+    - { name: project,  flag: --project,  type: string, required: true }
+    - { name: per_page, flag: --per-page, type: int,    default: 20 }
+
+  bash:
+    # glab reads GITLAB_HOST + GITLAB_TOKEN from env — runtime injects them
+    # from ~/.config/slash/gitlab.toml via the gitlab profile kind.
+    # `glab api` emits JSON, so we can render as a table.
+    argv:
+      - glab
+      - api
+      - "-X"
+      - GET
+      - "projects/${project}/pipelines?per_page=${per_page}"
+
+  output:
+    parse: json
+    kind: table
+    columns:
+      - { key: id,         label: "ID" }
+      - { key: status,     label: "Status", renderer: state-badge }
+      - { key: ref,        label: "Ref" }
+      - { key: source,     label: "Source" }
+      - { key: updated_at, label: "Updated", renderer: relative-time }
+      - { key: web_url,    label: "URL" }
+    row_actions:
+      - { label: "Get details", command: "/gitlab pipeline get ${id} --project ${project}" }

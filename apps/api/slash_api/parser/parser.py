@@ -9,7 +9,7 @@ from typing import Any
 from slash_api.parser.errors import ParseError
 from slash_api.parser.lexer import Token, TokenKind, tokenize
 
-NAMESPACES = ("infra", "cluster", "app", "ops", "ctx")
+NAMESPACES = ("infra", "cluster", "app", "ops", "ctx", "gitlab")
 # /infra still carries an explicit provider positional (aws|gcp — these are
 # distinct domains, not context switches). /cluster no longer consumes a
 # positional k8s context; the ctx is resolved from --ctx flag or session

@@ -50,7 +50,18 @@ quoted_string = '"' { char | \\" } '"' ;
 | `/infra aws vm get <id> [--region <r>]` | R | `aws ec2 describe-instances --instance-ids <id> --region …` |
 | `/infra aws vm metrics <id> [--metric <name>] [--minutes <m>] [--period <s>]` | R | `aws cloudwatch get-metric-statistics --namespace AWS/EC2 …` — sparkline 视图 |
 | `/infra aws sg rules <id> [--region <r>]` | R | `aws ec2 describe-security-groups --group-ids <id>` — ingress/egress 表 + world-open 高亮 |
+| `/infra aws ebs orphans [--region <r>]` | R | `aws ec2 describe-volumes --filters Name=status,Values=available` — 未挂载卷盘点 |
+| `/infra aws snapshot list [--region <r>] [--owner self]` | R | `aws ec2 describe-snapshots --owner-ids <owner>` — 快照冗余与成本排查 |
 | `/infra gcp vm list [--zone <z>]` | R | `gcloud compute instances list --zones <z> --format=json` |
+
+### 4.1b `/gitlab` — 流水线读取（新命名空间，v0.7 M1）
+
+需要 gitlab profile：`~/.config/slash/gitlab.toml` 里声明 `[profile-name]` section + `base_url` + `token`，然后 `/ctx pin gitlab <name>`。`glab` CLI 读取 `GITLAB_HOST` + `GITLAB_TOKEN`，不把 token 塞进 argv 或 audit 文本。
+
+| 命令 | 读/写 | bash 对应 |
+| --- | --- | --- |
+| `/gitlab pipelines list --project <path-or-id> [--per-page <n>]` | R | `glab api GET projects/<project>/pipelines?per_page=<n>` |
+| `/gitlab pipeline get <id> --project <path-or-id>` | R | `glab api GET projects/<project>/pipelines/<id>` |
 
 ### 4.2 `/cluster` — 扁平动词语法（2026-04 refactor）
 

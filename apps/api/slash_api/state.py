@@ -43,6 +43,8 @@ class SelectedProfiles:
     gcp_tier: Tier = "safe"
     k8s: str | None = None
     k8s_tier: Tier = "safe"
+    gitlab: str | None = None
+    gitlab_tier: Tier = "safe"
     llm_enabled: bool = False
     # kind -> unix seconds of most recent pin change (for drift guard)
     last_pinned_at: dict[str, float] = field(default_factory=dict)
@@ -55,6 +57,7 @@ _selected = SelectedProfiles(
     aws=os.environ.get("SLASH_DEFAULT_AWS_PROFILE"),
     gcp=os.environ.get("SLASH_DEFAULT_GCP_CONFIG"),
     k8s=os.environ.get("SLASH_DEFAULT_KUBE_CONTEXT"),
+    gitlab=os.environ.get("SLASH_DEFAULT_GITLAB_PROFILE"),
     llm_enabled=os.environ.get("SLASH_LLM_DEFAULT", "off").lower() == "on",
 )
 
@@ -93,6 +96,8 @@ def set_selected(
     gcp_tier: Tier | None = None,
     k8s: str | None = None,
     k8s_tier: Tier | None = None,
+    gitlab: str | None = None,
+    gitlab_tier: Tier | None = None,
     llm_enabled: bool | None = None,
 ) -> SelectedProfiles:
     """Mutate the session pin. Explicit None means 'unchanged'; the empty
@@ -129,6 +134,16 @@ def set_selected(
             _selected.gcp_tier = gcp_tier
         elif not _selected.gcp:
             _selected.gcp_tier = "safe"
+    # gitlab
+    if gitlab is not None:
+        prev = _selected.gitlab
+        _selected.gitlab = gitlab or None
+        if (_selected.gitlab or "") != (prev or ""):
+            _selected.last_pinned_at["gitlab"] = now
+        if gitlab_tier is not None and gitlab_tier in _TIERS:
+            _selected.gitlab_tier = gitlab_tier
+        elif not _selected.gitlab:
+            _selected.gitlab_tier = "safe"
     # llm
     if llm_enabled is not None:
         _selected.llm_enabled = bool(llm_enabled)

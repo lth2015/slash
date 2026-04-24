@@ -167,6 +167,9 @@ def _resolve_profile(ast, sel, manifest: dict | None = None) -> tuple[str | None
     if declared_kind == "gcp":
         override = ast.overrides.get("profile")
         return "gcp", override or sel.gcp
+    if declared_kind == "gitlab":
+        override = ast.overrides.get("profile")
+        return "gitlab", override or sel.gitlab
     return None, None
 
 
@@ -217,6 +220,16 @@ def _preflight(skill, sel, manifest, ast) -> str | None:
             return (
                 f"No {profile_kind.upper()} profile set. Pin one with "
                 f"`/ctx pin {profile_kind} <name>` or pass `--profile <name>`."
+            )
+    # GitLab profile — same shape as aws/gcp but env injects GITLAB_HOST +
+    # GITLAB_TOKEN read from ~/.config/slash/gitlab.toml.
+    if profile_required and profile_kind == "gitlab":
+        override = ast.overrides.get("profile")
+        chosen = override or sel.gitlab
+        if not chosen:
+            return (
+                "No GitLab profile set. Pin one with "
+                "`/ctx pin gitlab <name>` or pass `--profile <name>`."
             )
     return None
 

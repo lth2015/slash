@@ -81,6 +81,7 @@ def _reset_pins() -> None:
         aws="harness", aws_tier="safe",
         gcp="harness", gcp_tier="safe",
         k8s="harness", k8s_tier="safe",
+        gitlab="harness", gitlab_tier="safe",
     )
 
 

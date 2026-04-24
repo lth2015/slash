@@ -1,0 +1,30 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: gitlab.pipeline.get
+  name: "Get a GitLab pipeline"
+  description: "One pipeline's detail: status, duration, user, web URL. Paired with `/gitlab pipelines list` for drill-down."
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: gitlab, noun: [pipeline], verb: get }
+  mode: read
+  timeout: 30s
+  profile: { kind: gitlab, required: true }
+
+  args:
+    - { name: id,      type: string, positional: true, required: true }
+    - { name: project, flag: --project, type: string,  required: true }
+
+  bash:
+    argv:
+      - glab
+      - api
+      - "-X"
+      - GET
+      - "projects/${project}/pipelines/${id}"
+
+  output:
+    parse: json
+    kind: object

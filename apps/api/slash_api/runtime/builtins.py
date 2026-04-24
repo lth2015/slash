@@ -177,7 +177,7 @@ def _aggregate(ctx: BuildContext, config: dict) -> tuple[str, Any, str | None, s
 # path, so "who pinned what when" remains traceable.
 
 
-_VALID_KINDS = ("k8s", "aws", "gcp")
+_VALID_KINDS = ("k8s", "aws", "gcp", "gitlab")
 _VALID_TIERS = ("critical", "staging", "safe")
 
 
@@ -198,8 +198,10 @@ def _ctx_pin(args: dict[str, Any]) -> tuple[str, Any, str | None, str | None]:
         set_selected(k8s=name, k8s_tier=tier)
     elif kind == "aws":
         set_selected(aws=name, aws_tier=tier)
-    else:  # gcp
+    elif kind == "gcp":
         set_selected(gcp=name, gcp_tier=tier)
+    else:  # gitlab
+        set_selected(gitlab=name, gitlab_tier=tier)
 
     sel = selected()
     return "ok", {
@@ -221,6 +223,8 @@ def _ctx_unpin(args: dict[str, Any]) -> tuple[str, Any, str | None, str | None]:
         set_selected(aws="", aws_tier="safe")
     if kind in ("gcp", "all"):
         set_selected(gcp="", gcp_tier="safe")
+    if kind in ("gitlab", "all"):
+        set_selected(gitlab="", gitlab_tier="safe")
 
     sel = selected()
     return "ok", {
@@ -251,6 +255,7 @@ def _ctx_list() -> tuple[str, Any, str | None, str | None]:
         "k8s_contexts": inv.k8s_contexts,
         "aws_profiles": inv.aws_profiles,
         "gcp_configurations": inv.gcp_configurations,
+        "gitlab_profiles": inv.gitlab_profiles,
         "errors": inv.errors,
         "current": _pin_snapshot(sel),
     }, None, None
@@ -262,4 +267,5 @@ def _pin_snapshot(sel: Any) -> dict[str, Any]:
         "k8s": {"name": sel.k8s, "tier": sel.k8s_tier} if sel.k8s else None,
         "aws": {"name": sel.aws, "tier": sel.aws_tier} if sel.aws else None,
         "gcp": {"name": sel.gcp, "tier": sel.gcp_tier} if sel.gcp else None,
+        "gitlab": {"name": sel.gitlab, "tier": sel.gitlab_tier} if sel.gitlab else None,
     }
