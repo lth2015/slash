@@ -424,15 +424,27 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
       // A: parent-side lag — skip until it catches up.
       return;
     }
-    // C: genuine external update. Sync into the editor, move caret to the
-    // end, and pull focus back — suggestion clicks / chip clicks otherwise
-    // leave focus on the DOM button, which would make Enter re-click it
-    // instead of running the command now in the bar.
+    // C: genuine external update. Sync into the editor, pull focus back
+    // (suggestion / chip clicks otherwise leave focus on the source
+    // button so Enter re-clicks it instead of running the command), and
+    // if the filled text has a `<placeholder>`, select it so the user's
+    // next keystroke replaces the bracketed span — same snippet-mode UX
+    // the in-bar palette pick already gives.
     lastReportedRef.current = value;
+    const placeholder = findNextPlaceholder(value, 0);
     v.dispatch({
       changes: { from: 0, to: current.length, insert: value },
-      selection: { anchor: value.length },
+      selection: placeholder
+        ? { anchor: placeholder.from, head: placeholder.to }
+        : { anchor: value.length },
     });
+    if (placeholder) {
+      const el = v.contentDOM;
+      el.classList.remove("snippet-flash");
+      void el.offsetWidth;
+      el.classList.add("snippet-flash");
+      window.setTimeout(() => el.classList.remove("snippet-flash"), 520);
+    }
     // dispatch fired our own listener synchronously, which flipped
     // parentCaughtUpRef to false. But this update ORIGINATED from a value
     // we just received from the parent — the channel is in sync by
