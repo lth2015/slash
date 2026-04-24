@@ -1,0 +1,45 @@
+apiVersion: slash/v1
+kind: Capability
+metadata:
+  id: infra.aws.orphan_scan
+  name: "AWS orphan resource scan"
+  description: "Scan for unattached EBS volumes and redundant snapshots. Read-only — surfaces what could be cleaned up."
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [orphan], verb: scan }
+  profile: { kind: aws, required: true }
+  mode: read
+
+  args:
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+
+  steps:
+    - id: orphan_volumes
+      skill: infra.aws.ebs.orphans
+      args: { region: "${args.region}" }
+    - id: snapshots
+      skill: infra.aws.snapshot.list
+      args: { region: "${args.region}" }
+
+  findings:
+    - id: orphan_volumes_present
+      from: orphan_volumes
+      when: "count(row.State == \"available\") > 0"
+      severity: warn
+      message: "${count} orphan EBS volume(s) in ${args.region}"
+      suggest: "/infra aws ebs orphans --region ${args.region}"
+
+    - id: large_orphan
+      from: orphan_volumes
+      when: "any(row.Size >= 500)"
+      severity: warn
+      message: "At least one orphan volume ≥ 500 GB"
+      suggest: "/infra aws ebs orphans --region ${args.region}"
+
+    - id: many_snapshots
+      from: snapshots
+      when: "count(row.State == \"completed\") > 100"
+      severity: info
+      message: "${count} snapshots owned — consider a retention policy"

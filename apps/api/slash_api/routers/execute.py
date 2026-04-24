@@ -30,7 +30,14 @@ from slash_api.runtime import (
 )
 from slash_api.runtime.builder import BuildContext
 from slash_api.runtime.profile import env_for_profile, merged_env
-from slash_api.state import drift_seconds, registry, selected, user
+from slash_api.state import (
+    capability_registry,
+    drift_seconds,
+    registry,
+    selected,
+    unified_lookup,
+    user,
+)
 
 _DRIFT_WINDOW_SECONDS = 60.0
 
@@ -238,7 +245,7 @@ def _preflight(skill, sel, manifest, ast) -> str | None:
 def execute(req: ExecuteRequest) -> ExecuteResponse:
     reg = registry()
     try:
-        ast = parse(req.text, reg.lookup)
+        ast = parse(req.text, unified_lookup)
     except ParseError as exc:
         raise HTTPException(
             status_code=400,
@@ -250,6 +257,14 @@ def execute(req: ExecuteRequest) -> ExecuteResponse:
                 "suggestions": list(exc.suggestions),
             },
         ) from exc
+
+    # Capability path: if the parser resolved to a capability id, hand off.
+    # Skills win on collision (see loader), but capabilities can still share
+    # a namespace and claim distinct command_paths. The capability executor
+    # re-uses the same runtime.execute() for each step.
+    cap = capability_registry().by_id(ast.skill_id)
+    if cap is not None:
+        return _execute_capability(cap, ast, reg)
 
     skill = _skill_for(ast.skill_id)
     if skill is None:
@@ -708,3 +723,175 @@ def _plan_text(command: str, before: dict | None, after: dict | None, manifest: 
         lines.append(f"before: {json.dumps(before.get('value'))}")
         lines.append(f"after : {json.dumps(after.get('value'))}")
     return "\n".join(lines)
+
+
+# ── Capability dispatch ────────────────────────────────────────────────
+
+
+def _execute_capability(cap, ast, reg) -> ExecuteResponse:
+    """Run a capability end-to-end. v0.7 capabilities are read-only; the
+    write-capability HITL path (docs/09 §5.2) is deferred to a later phase.
+    """
+    from slash_api.capability import execute_capability
+
+    if cap.mode != "read":
+        raise HTTPException(
+            status_code=501,
+            detail={
+                "code": "NotImplemented",
+                "message": f"write capabilities (mode={cap.mode}) are deferred — v0.7 ships read-only.",
+            },
+        )
+
+    # Capability preflight: if it declares a profile.kind, reuse the same
+    # pin resolution skills use (no new path).
+    sel = selected()
+    profile_kind, profile_name = _cap_resolve_profile(cap, ast, sel)
+    if cap.profile_required and not profile_name:
+        kind = cap.profile_kind or "profile"
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "MissingContext",
+                "message": (
+                    f"No {kind.upper()} profile set. Pin one with "
+                    f"`/ctx pin {kind} <name>` or pass `--profile <name>`."
+                ),
+            },
+        )
+
+    # Build the set of skill id → manifest dicts the executor needs.
+    skill_by_id = {s.id: s for s in reg.all_skills()}
+    skill_manifests: dict[str, dict] = {}
+    for step in cap.steps:
+        skill = skill_by_id.get(step.skill_id)
+        if skill is None:
+            raise HTTPException(
+                status_code=500,
+                detail=f"capability {cap.id} references unknown skill {step.skill_id}",
+            )
+        skill_manifests[step.skill_id] = _manifest(skill)
+
+    k8s_ctx = (
+        ast.overrides.get("ctx") or sel.k8s
+    ) if (profile_kind == "k8s" or any(
+        (skill_manifests[sid].get("spec", {}).get("profile") or {}).get("kind") == "k8s"
+        for sid in skill_manifests
+    )) else None
+
+    result = execute_capability(
+        cap=cap,
+        ast=ast,
+        skill_by_id=skill_by_id,
+        skill_manifests=skill_manifests,
+        profile_kind=profile_kind,
+        profile_name=profile_name,
+        k8s_context=k8s_ctx,
+    )
+
+    # Audit: one row for the capability + one per child step. Parent→child
+    # linkage via parent_run_id lets /ops audit logs reconstruct the chain.
+    audit.append({
+        "run_id": result.run_id,
+        "user": user(),
+        "command": ast.raw,
+        "parsed_command": ast.to_dict(),
+        "skill_id": cap.id,
+        "kind": "capability",
+        "mode": cap.mode,
+        "state": result.state,
+        "duration_ms": result.duration_ms,
+        "started_at": result.started_at,
+        "ended_at": result.ended_at,
+        "profile": {"kind": profile_kind, "name": profile_name},
+        "findings": [
+            {"id": f.id, "severity": f.severity, "message": f.message, "count": f.count}
+            for f in result.findings
+        ],
+        "step_ids": [s.id for s in result.steps],
+        "error_code": result.error_code,
+    })
+    for step in result.steps:
+        audit.append({
+            "run_id": f"r_{uuid.uuid4().hex[:12]}",
+            "parent_run_id": result.run_id,
+            "user": user(),
+            "command": f"(capability step {step.id})",
+            "skill_id": step.skill_id,
+            "kind": "step",
+            "mode": "read",
+            "state": step.state,
+            "exit_code": step.exit_code,
+            "duration_ms": step.duration_ms,
+            "execution_argv": step.argv,
+            "started_at": step.started_at,
+            "ended_at": step.ended_at,
+        })
+
+    return ExecuteResponse(
+        run_id=result.run_id,
+        state="ok" if result.state == "ok" else "error",
+        skill_id=cap.id,
+        mode="read",
+        danger=False,
+        duration_ms=result.duration_ms,
+        exit_code=0 if result.state == "ok" else 1,
+        started_at=result.started_at,
+        ended_at=result.ended_at,
+        profile_kind=profile_kind,
+        profile_name=profile_name,
+        output_spec={"kind": "capability-result"},
+        # Stash the structured result in `outputs` so the UI's
+        # capability-result view can render it end-to-end.
+        outputs={
+            "capability_id": cap.id,
+            "name": cap.name,
+            "description": cap.description,
+            "state": result.state,
+            "findings": [
+                {
+                    "id": f.id,
+                    "severity": f.severity,
+                    "message": f.message,
+                    "suggest": f.suggest,
+                    "count": f.count,
+                    "from_step": f.from_step,
+                }
+                for f in result.findings
+            ],
+            "steps": [
+                {
+                    "id": s.id,
+                    "skill_id": s.skill_id,
+                    "state": s.state,
+                    "exit_code": s.exit_code,
+                    "duration_ms": s.duration_ms,
+                    "argv": s.argv,
+                    "outputs": s.outputs,
+                    "error_code": s.error_code,
+                    "error_message": s.error_message,
+                }
+                for s in result.steps
+            ],
+            "failed_step": result.failed_step,
+        },
+        error_code=result.error_code,
+        error_message=result.error_message,
+    )
+
+
+def _cap_resolve_profile(cap, ast, sel) -> tuple[str | None, str | None]:
+    """Resolve a capability's declared profile.kind to a concrete pin name."""
+    kind = cap.profile_kind
+    if not kind:
+        return None, None
+    override = ast.overrides.get("profile") or ast.overrides.get("ctx")
+    if kind == "k8s":
+        return "k8s", ast.overrides.get("ctx") or sel.k8s
+    if kind == "aws":
+        return "aws", override or sel.aws
+    if kind == "gcp":
+        return "gcp", override or sel.gcp
+    if kind == "gitlab":
+        return "gitlab", override or sel.gitlab
+    return kind, None

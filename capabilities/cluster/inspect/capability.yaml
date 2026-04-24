@@ -1,0 +1,55 @@
+apiVersion: slash/v1
+kind: Capability
+metadata:
+  id: cluster.inspect
+  name: "Cluster inspection"
+  description: "Pull pods + events + nodes in one shot and surface obvious problems as findings."
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: cluster, verb: inspect }
+  profile: { kind: k8s, required: true }
+  mode: read
+
+  args:
+    - { name: ns, flag: --ns, type: string, required: true }
+
+  steps:
+    - id: list_pods
+      skill: cluster.pods
+      args: { ns: "${args.ns}" }
+    - id: recent_events
+      skill: cluster.events
+      args: { ns: "${args.ns}" }
+    - id: node_health
+      skill: cluster.nodes
+
+  findings:
+    - id: crashloop_pods
+      from: list_pods
+      when: 'any(row.status.containerStatuses[0].state.waiting.reason == "CrashLoopBackOff")'
+      severity: error
+      message: "${count} pod(s) in CrashLoopBackOff"
+      suggest: "/cluster pod events <pod> --ns ${args.ns}"
+
+    - id: imagepull_pods
+      from: list_pods
+      when: 'any(row.status.containerStatuses[0].state.waiting.reason == "ImagePullBackOff")'
+      severity: error
+      message: "${count} pod(s) in ImagePullBackOff"
+      suggest: "/cluster describe <pod> --ns ${args.ns}"
+
+    - id: pending_pods
+      from: list_pods
+      when: 'count(row.status.phase == "Pending") > 0'
+      severity: warn
+      message: "${count} pod(s) in Pending"
+      suggest: "/cluster describe <pod> --ns ${args.ns}"
+
+    - id: warning_events
+      from: recent_events
+      when: 'count(row.type == "Warning") > 0'
+      severity: warn
+      message: "${count} warning event(s) in window"
+      suggest: "/cluster events --ns ${args.ns}"

@@ -19,6 +19,9 @@ from slash_api.registry import SkillRegistry, load_registry
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SKILLS_DIR = Path(os.environ.get("SLASH_SKILLS_DIR", REPO_ROOT / "skills"))
+CAPABILITIES_DIR = Path(
+    os.environ.get("SLASH_CAPABILITIES_DIR", REPO_ROOT / "capabilities")
+)
 
 # Load .env.local (gitignored) at repo root before anything else reads env.
 _dotenv_path = REPO_ROOT / ".env.local"
@@ -53,6 +56,11 @@ class SelectedProfiles:
 _registry: SkillRegistry | None = None
 _reg_lock = threading.Lock()
 
+# Capability registry — loaded after skills; caches its own set of command
+# paths to avoid a second pass at lookup time. See docs/09-capabilities.md §3.
+_capability_registry = None  # type: ignore[var-annotated]
+_cap_lock = threading.Lock()
+
 _selected = SelectedProfiles(
     aws=os.environ.get("SLASH_DEFAULT_AWS_PROFILE"),
     gcp=os.environ.get("SLASH_DEFAULT_GCP_CONFIG"),
@@ -78,10 +86,63 @@ def registry() -> SkillRegistry:
 
 
 def reload_registry() -> SkillRegistry:
-    global _registry
+    global _registry, _capability_registry
     with _reg_lock:
         _registry = load_registry(SKILLS_DIR)
+    with _cap_lock:
+        _capability_registry = None  # lazy-reload on next access
     return _registry
+
+
+def capability_registry():
+    """Lazy-loaded CapabilityRegistry. Falls back to an empty registry if
+    the capabilities/ directory does not exist yet."""
+    global _capability_registry
+    with _cap_lock:
+        if _capability_registry is not None:
+            return _capability_registry
+    # Import here to avoid a circular dep (capability.loader -> registry.loader)
+    from slash_api.capability.loader import (
+        command_paths_by_namespace,
+        load_capabilities,
+    )
+
+    skills = registry().all_skills()
+    skill_ids = {s.id for s in skills}
+    skill_paths = command_paths_by_namespace(skills)
+    cap_reg = load_capabilities(CAPABILITIES_DIR, skill_ids, skill_paths)
+    with _cap_lock:
+        _capability_registry = cap_reg
+    return cap_reg
+
+
+def unified_lookup(namespace: str, target: str | None):
+    """Parser-facing lookup returning both skills AND capabilities in that
+    namespace. Capabilities are wrapped in SkillSpec facades so the parser
+    treats them uniformly — execute.py then dispatches by looking the
+    resolved skill_id up in both registries."""
+    from slash_api.parser.parser import SkillSpec
+
+    skills = registry().lookup(namespace, target)
+    cap_reg = capability_registry()
+    caps = cap_reg.lookup(namespace, target)
+    facades = [
+        SkillSpec(
+            id=c.id,
+            namespace=c.namespace,
+            target=c.target,
+            noun=c.noun,
+            verb=c.verb,
+            mode="read" if c.mode == "read" else "write",  # coerce for parser
+            args=c.args,
+            danger=False,
+            name=c.name,
+            description=c.description,
+            manifest_path=c.manifest_path,
+        )
+        for c in caps
+    ]
+    return skills + facades
 
 
 def selected() -> SelectedProfiles:

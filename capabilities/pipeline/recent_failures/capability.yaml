@@ -1,0 +1,38 @@
+apiVersion: slash/v1
+kind: Capability
+metadata:
+  id: pipeline.recent_failures
+  name: "Recent pipeline failures"
+  description: "Scan recent pipelines for a project and flag the failed ones with drill-down suggestions."
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: pipeline, noun: [recent], verb: failures }
+  profile: { kind: gitlab, required: true }
+  mode: read
+
+  args:
+    - { name: project,  flag: --project,  type: string, required: true }
+    - { name: per_page, flag: --per-page, type: int,    default: 30 }
+
+  steps:
+    - id: list
+      skill: gitlab.pipelines.list
+      args:
+        project: "${args.project}"
+        per_page: "${args.per_page}"
+
+  findings:
+    - id: failed
+      from: list
+      when: 'count(row.status == "failed") > 0'
+      severity: error
+      message: "${count} failed pipeline(s) in the last ${args.per_page}"
+      suggest: "/gitlab pipeline get <id> --project ${args.project}"
+
+    - id: running
+      from: list
+      when: 'any(row.status == "running")'
+      severity: info
+      message: "${count} pipeline(s) still running"
