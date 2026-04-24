@@ -257,15 +257,15 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
         preventDefault: true,
         run: (v) => {
           const text = v.state.doc.toString();
-          // If palette is open AND current text is just a prefix with no placeholder
-          // yet filled, treat Enter as "insert" — user is browsing.
+          // Enter always submits intent-complete input. Palette still helps via
+          // Tab (insert highlighted) and arrow keys (change highlight); Enter
+          // only short-circuits into the palette when the user has typed
+          // nothing yet (empty bar) or still has a `<placeholder>` to fill —
+          // both cases where submitting would error on the server anyway.
           const canPick =
             openRef.current &&
             itemsRef.current.length > 0 &&
-            // Only auto-pick when input is short / doesn't look like a full command.
-            (text.trim().length === 0 ||
-              text.trimEnd().split(/\s+/).length <= 2 ||
-              text.includes("<"));
+            (text.trim().length === 0 || text.includes("<"));
           if (canPick) return pickCurrent();
           if (text.trim()) onSubmitRef.current(text);
           return true;

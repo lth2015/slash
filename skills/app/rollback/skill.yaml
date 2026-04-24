@@ -1,0 +1,79 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: app.rollback
+  name: "Rollback a Deployment"
+  description: "Revert a Deployment to its previous revision. Use when a /app deploy went bad."
+  version: 0.1.0
+  labels: { stability: alpha, risk: high }
+
+spec:
+  command: { namespace: app, noun: [], verb: rollback }
+  mode: write
+  danger: true
+  danger_reason: |
+    Undoes the most recent rollout on a live Deployment. If the previous
+    revision itself was broken this can make things worse. Prefer confirming
+    the rollout history with `kubectl rollout history deployment/<name>`
+    before approving. Always pair with a --reason capturing the incident ID.
+  approvers: 1
+  timeout: 120s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: name,   type: string, positional: true, required: true }
+    - { name: ns,     flag: --ns,     type: string, required: true }
+    - { name: reason, flag: --reason, type: string, required: true }
+
+  preflight:
+    # Block approve-time if the Deployment has vanished since plan staged.
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - deployment
+      - "${name}"
+
+  plan:
+    # Snapshot the current image so the PlanCard's before/after shows what
+    # reverts. After-value is "previous revision" since we can't know the
+    # previous image without a second lookup — keeps the plan deterministic.
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - deployment
+      - "${name}"
+      - -o
+      - jsonpath={.spec.template.spec.containers[0].image}
+    diff:
+      before_source: stdout
+      after_value: "previous revision"
+    target: "deploy/${name}"
+    steps:
+      - "Verify kubectl context ${profile.k8s.context} is reachable"
+      - "Check deployment ${name} exists in ns ${ns}"
+      - "Undo latest rollout on deployment/${name}"
+
+  bash:
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - rollout
+      - undo
+      - "deployment/${name}"
+
+  rollback: "Re-run the original /app deploy with the prior image tag."
+
+  output:
+    parse: text
+    kind: log

@@ -1,0 +1,59 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.vm.metrics
+  name: "EC2 instance metrics"
+  description: "CloudWatch datapoints for one EC2 instance. CPU by default; pick another with --metric."
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [vm], verb: metrics }
+  mode: read
+  timeout: 30s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: id,      type: string, positional: true, required: true }
+    - { name: region,  flag: --region,  type: string, default: "us-east-1" }
+    - { name: minutes, flag: --minutes, type: int,    default: 60 }
+    - { name: period,  flag: --period,  type: int,    default: 60 }
+    - name: metric
+      flag: --metric
+      type: string
+      default: "CPUUtilization"
+      enum: [CPUUtilization, NetworkIn, NetworkOut, DiskReadBytes, DiskWriteBytes, StatusCheckFailed]
+
+  bash:
+    # CloudWatch's absolute-time API is awkward from a static template.
+    # `--period` + no start/end means CW defaults to the latest hour;
+    # we rely on CW's behavior of returning the most recent datapoints
+    # up to the period × 60 limit. For windows beyond 1h, pass --minutes
+    # and we'll let CW clamp. Keep it simple: one call, one series.
+    argv:
+      - aws
+      - cloudwatch
+      - get-metric-statistics
+      - --namespace
+      - "AWS/EC2"
+      - --metric-name
+      - "${metric}"
+      - --dimensions
+      - "Name=InstanceId,Value=${id}"
+      - --statistics
+      - "Average"
+      - "Maximum"
+      - --period
+      - "${period}"
+      - --start-time
+      - "-${minutes}m"
+      - --end-time
+      - "now"
+      - --region
+      - "${region}"
+      - --output
+      - json
+
+  output:
+    parse: json
+    kind: metrics-sparkline

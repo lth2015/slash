@@ -48,6 +48,8 @@ quoted_string = '"' { char | \\" } '"' ;
 | --- | --- | --- |
 | `/infra aws vm list [--region <r>] [--tag <k>=<v>]` | R | `aws ec2 describe-instances --region … --profile $AWS_PROFILE` |
 | `/infra aws vm get <id> [--region <r>]` | R | `aws ec2 describe-instances --instance-ids <id> --region …` |
+| `/infra aws vm metrics <id> [--metric <name>] [--minutes <m>] [--period <s>]` | R | `aws cloudwatch get-metric-statistics --namespace AWS/EC2 …` — sparkline 视图 |
+| `/infra aws sg rules <id> [--region <r>]` | R | `aws ec2 describe-security-groups --group-ids <id>` — ingress/egress 表 + world-open 高亮 |
 | `/infra gcp vm list [--zone <z>]` | R | `gcloud compute instances list --zones <z> --format=json` |
 
 ### 4.2 `/cluster` — 扁平动词语法（2026-04 refactor）
@@ -74,6 +76,8 @@ quoted_string = '"' { char | \\" } '"' ;
 | `/cluster get deploy <name> --ns <n>` | R | `kubectl -n <ns> get deploy <name> -o json`（保留 2-token 形态） |
 | `/cluster get svc <name> --ns <n>` | R | `kubectl -n <ns> get svc <name> -o json`（保留） |
 | `/cluster node describe <name>` | R | `kubectl describe node <name>`（保留） |
+| `/cluster pod events <pod> --ns <n>` | R | `kubectl get events --field-selector=involvedObject.name=<pod> -o json` — timeline 视图 |
+| `/cluster rollout status <deploy> --ns <n> [--timeout <d>]` | R | `kubectl rollout status deployment/<deploy> --timeout=<d>` — banner 视图 |
 | `/cluster diagnose <pod> --ns <n>` | R | aggregate: describe + events + logs → LLM explain |
 
 **Write（HITL）**：
@@ -105,8 +109,8 @@ Ctx 解析：每条命令都接受可选 `--ctx <name>` 覆盖，否则读 sessi
 | 命令 | 读/写 | bash 对应 | 状态 |
 | --- | --- | --- | --- |
 | `/app status <name> --ns <n>` | R | `kubectl get deployment <name> -o json` → 取 `.status` | ✅ 已实现 |
-| `/app deploy <name> --env <env> --image <ref> --reason "<t>"` | **W · danger** | step 1: `kubectl set image deployment/<name> *=<ref>`  · step 2: `kubectl rollout status deployment/<name>` | 🟡 待实现（需要 runtime 的 sequential bash.steps） |
-| `/app rollback <name> --env <env> --reason "<t>"` | **W · danger** | `kubectl rollout undo deployment/<name>` | ❌ 未实现 |
+| `/app deploy <name> --ns <n> --image <ref> --reason "<t>"` | **W · danger** | step 1: `kubectl set image deployment/<name> *=<ref>`  · step 2: `kubectl rollout status deployment/<name>` | ✅ 已实现 |
+| `/app rollback <name> --ns <n> --reason "<t>"` | **W · danger** | `kubectl rollout undo deployment/<name>` | ✅ 已实现 |
 | `/app config get <name> --ns <n>` | R | `kubectl get configmap <name> -o json` | ❌ 未实现 |
 | `/app config diff <name> --file <path>` | R | `kubectl diff -f <path>` | ❌ 未实现 |
 | `/app config update <name> --file <path> --reason "<t>"` | **W** | `kubectl apply -f <path>` | ❌ 未实现 |

@@ -1,0 +1,35 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.sg.rules
+  name: "Security group rules"
+  description: "Ingress + egress rules for a security group. Use when network is unreachable."
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [sg], verb: rules }
+  mode: read
+  timeout: 30s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: id,     type: string, positional: true, required: true }
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+
+  bash:
+    argv:
+      - aws
+      - ec2
+      - describe-security-groups
+      - --group-ids
+      - "${id}"
+      - --region
+      - "${region}"
+      - --output
+      - json
+
+  output:
+    parse: json
+    path: "SecurityGroups[]"
+    kind: sg-rules

@@ -1,0 +1,8 @@
+cases:
+  - name: "happy path"
+    input: "/cluster rollout status web --ns api"
+    mock:
+      stdout: "happy.txt"
+      exit: 0
+    expect:
+      state: "ok"

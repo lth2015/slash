@@ -33,7 +33,7 @@ spec:
   output:
     parse: json
     path: "items[]"
-    kind: table
+    kind: event-timeline
     columns:
       - { key: lastTimestamp,         label: "When",      renderer: relative-time }
       - { key: type,                  label: "Type",      renderer: state-badge }
@@ -41,3 +41,7 @@ spec:
       - { key: involvedObject.kind,   label: "Kind" }
       - { key: involvedObject.name,   label: "Object" }
       - { key: message,               label: "Message" }
+    row_actions:
+      - { label: "Pod events",   command: "/cluster pod events ${involvedObject.name} --ns ${metadata.namespace}" }
+      - { label: "Describe pod", command: "/cluster describe ${involvedObject.name} --ns ${metadata.namespace}" }
+      - { label: "Tail logs",    command: "/cluster logs ${involvedObject.name} --ns ${metadata.namespace} --since 15m" }

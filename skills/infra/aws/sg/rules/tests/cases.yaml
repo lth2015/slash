@@ -1,0 +1,9 @@
+cases:
+  - name: "happy path"
+    input: "/infra aws sg rules sg-0abc123 --region us-east-1"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 1

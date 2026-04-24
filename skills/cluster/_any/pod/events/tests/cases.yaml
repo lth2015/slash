@@ -1,0 +1,12 @@
+cases:
+  - name: "pod in crashloop"
+    input: "/cluster pod events web-7c9f-xyz --ns api"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"
+      outputs_len: 3
+      outputs_row0:
+        type: "Warning"
+        reason: "BackOff"

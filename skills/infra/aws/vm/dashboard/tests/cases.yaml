@@ -1,0 +1,8 @@
+cases:
+  - name: "happy 24h"
+    input: "/infra aws vm dashboard i-0abc123 --region us-east-1 --hours 24"
+    mock:
+      stdout: "happy.json"
+      exit: 0
+    expect:
+      state: "ok"

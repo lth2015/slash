@@ -1,0 +1,49 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: cluster.pod.events
+  name: "Pod events"
+  description: "Events scoped to one pod — sorted by time. The fastest way to find the root cause."
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: cluster, target: _any, noun: [pod], verb: events }
+  mode: read
+  timeout: 15s
+  profile: { kind: k8s, required: true }
+
+  args:
+    - { name: pod, type: string, positional: true, required: true }
+    - { name: ns,  flag: --ns, type: string, required: true }
+
+  bash:
+    # --field-selector narrows to the target pod; we then sort by lastTimestamp
+    # and render as a timeline (most-recent first in the UI layer).
+    argv:
+      - kubectl
+      - --context
+      - "${profile.k8s.context}"
+      - -n
+      - "${ns}"
+      - get
+      - events
+      - "--field-selector=involvedObject.name=${pod}"
+      - --sort-by=.lastTimestamp
+      - -o
+      - json
+
+  output:
+    parse: json
+    path: "items[]"
+    kind: event-timeline
+    columns:
+      - { key: lastTimestamp,       label: "When",    renderer: relative-time }
+      - { key: type,                label: "Type",    renderer: state-badge }
+      - { key: reason,              label: "Reason" }
+      - { key: involvedObject.kind, label: "Kind" }
+      - { key: involvedObject.name, label: "Object" }
+      - { key: message,             label: "Message" }
+    row_actions:
+      - { label: "Describe pod",  command: "/cluster describe ${involvedObject.name} --ns ${metadata.namespace}" }
+      - { label: "Tail logs",     command: "/cluster logs ${involvedObject.name} --ns ${metadata.namespace} --since 15m" }

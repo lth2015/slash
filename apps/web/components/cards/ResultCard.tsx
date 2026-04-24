@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronsUpDown, Inbox, MoreHorizontal, RotateCcw } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, ChevronsUpDown, Inbox, MoreHorizontal, RotateCcw, Search } from "lucide-react";
 
 import { Card, CardMeta } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
 import { cn } from "@/lib/cn";
+import {
+  CtxInventory,
+  EventTimeline,
+  MetricsSparkline,
+  MultiMetricChart,
+  RolloutBanner,
+  SecurityGroupRules,
+} from "@/components/cards/views";
 
 type Column = {
   key: string;
@@ -26,7 +34,17 @@ export interface RowAction {
 }
 
 export interface OutputSpec {
-  kind?: "table" | "object" | "log" | "chart";
+  kind?:
+    | "table"
+    | "object"
+    | "log"
+    | "chart"
+    | "rollout-banner"
+    | "event-timeline"
+    | "metrics-sparkline"
+    | "multi-metric-chart"
+    | "sg-rules"
+    | "ctx-inventory";
   parse?: "json" | "text" | "lines";
   path?: string;
   columns?: Column[];
@@ -102,6 +120,28 @@ export function ResultCard({
         {kind === "object" && <ObjectView value={result.outputs} />}
         {kind === "log" && <LogView text={String(result.outputs ?? "")} />}
         {kind === "chart" && <ObjectView value={result.outputs} />}
+        {kind === "rollout-banner" && (
+          <RolloutBanner text={String(result.outputs ?? "")} />
+        )}
+        {kind === "event-timeline" && (
+          <EventTimeline
+            rows={asArray(result.outputs)}
+            rowActions={spec.row_actions}
+            onAction={onAction}
+          />
+        )}
+        {kind === "metrics-sparkline" && (
+          <MetricsSparkline value={result.outputs} />
+        )}
+        {kind === "multi-metric-chart" && (
+          <MultiMetricChart value={result.outputs} />
+        )}
+        {kind === "sg-rules" && (
+          <SecurityGroupRules rows={asArray(result.outputs)} />
+        )}
+        {kind === "ctx-inventory" && (
+          <CtxInventory value={result.outputs} onAction={onAction} />
+        )}
 
         {result.per_step_results && result.per_step_results.length > 0 && (
           <PerStepPanel steps={result.per_step_results} />
@@ -153,6 +193,17 @@ function asArray(v: unknown): unknown[] {
 }
 
 // ── Table ──────────────────────────────────────────────────────────────
+// For lists of meaningful size we reduce noise with three affordances:
+//   1. A search box that filters rows via substring match across all cells.
+//      Backed by a simple join-and-includes so no new dep and instantly fast.
+//   2. A default row cap (DEFAULT_ROW_LIMIT) so 200-row k8s event lists don't
+//      drown the screen. A single chip reveals the rest when needed.
+//   3. Click-to-expand per row — opens a detail panel showing the raw row JSON
+//      (dl layout) plus row_actions as full-width buttons. This turns the
+//      table into summary → drill-down rather than a wall of text.
+
+const DEFAULT_ROW_LIMIT = 20;
+
 function TableView({
   rows,
   columns,
@@ -167,6 +218,9 @@ function TableView({
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [openRow, setOpenRow] = useState<number | null>(null);
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
 
   const sorted = useMemo(() => {
     if (!sortKey) return rows;
@@ -178,6 +232,26 @@ function TableView({
     });
     return copy;
   }, [rows, sortKey, sortDir]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter((row) => {
+      // Match against every column's resolved value — cheap and covers what the
+      // user actually sees. Fallback to full JSON for rows with keys that
+      // aren't declared as columns.
+      for (const c of columns) {
+        const v = resolveKey(row, c.key);
+        if (v != null && String(v).toLowerCase().includes(q)) return true;
+      }
+      try {
+        return JSON.stringify(row).toLowerCase().includes(q);
+      } catch {
+        return false;
+      }
+    });
+  }, [sorted, columns, query]);
+
   const stateSummary = useMemo(() => buildStateSummary(rows, columns), [rows, columns]);
 
   if (rows.length === 0) {
@@ -191,14 +265,30 @@ function TableView({
   }
 
   const hasActions = !!(rowActions && rowActions.length && onAction);
+  const showSearch = rows.length >= 6;
+  const capApplied = !showAll && !query && filtered.length > DEFAULT_ROW_LIMIT;
+  const visible = capApplied ? filtered.slice(0, DEFAULT_ROW_LIMIT) : filtered;
 
   return (
     <div>
       {stateSummary && <TableSummaryStrip total={rows.length} {...stateSummary} />}
+      {showSearch && (
+        <TableFilterBar
+          query={query}
+          onQuery={setQuery}
+          total={rows.length}
+          matched={filtered.length}
+          onClear={() => {
+            setQuery("");
+            setExpandedRow(null);
+          }}
+        />
+      )}
     <div className="overflow-x-auto">
       <table className="w-full font-mono text-small">
         <thead>
           <tr className="bg-surface-sub border-b border-border-subtle">
+            <th className="w-6" aria-label="expand" />
             {columns.map((c) => (
               <th
                 key={c.key}
@@ -225,18 +315,37 @@ function TableView({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((row, i) => (
+          {visible.map((row, i) => (
+            <Fragment key={i}>
             <tr
-              key={i}
-              className="border-b border-border-subtle last:border-b-0 hover:bg-elevated transition-colors duration-80"
+              className={cn(
+                "border-b border-border-subtle last:border-b-0 transition-colors duration-80 cursor-pointer",
+                expandedRow === i ? "bg-elevated" : "hover:bg-elevated",
+              )}
+              onClick={() => setExpandedRow((cur) => (cur === i ? null : i))}
             >
+              <td
+                className="w-6 px-1 text-text-muted select-none"
+                aria-label={expandedRow === i ? "collapse" : "expand"}
+              >
+                <ChevronRight
+                  size={12}
+                  className={cn(
+                    "transition-transform duration-160",
+                    expandedRow === i && "rotate-90",
+                  )}
+                />
+              </td>
               {columns.map((c) => (
                 <td key={c.key} className="h-9 px-4 whitespace-nowrap">
                   <CellRenderer row={row} col={c} />
                 </td>
               ))}
               {hasActions && (
-                <td className="w-10 px-2 whitespace-nowrap relative">
+                <td
+                  className="w-10 px-2 whitespace-nowrap relative"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <RowActionMenu
                     open={openRow === i}
                     onToggle={(next) => setOpenRow(next ? i : null)}
@@ -250,11 +359,189 @@ function TableView({
                 </td>
               )}
             </tr>
+            {expandedRow === i && (
+              <tr className="bg-surface-sub border-b border-border-subtle">
+                <td />
+                <td
+                  colSpan={columns.length + (hasActions ? 1 : 0)}
+                  className="px-4 py-3"
+                >
+                  <RowDetail
+                    row={row}
+                    columns={columns}
+                    actions={hasActions ? rowActions : undefined}
+                    onAction={onAction}
+                  />
+                </td>
+              </tr>
+            )}
+            </Fragment>
           ))}
         </tbody>
       </table>
     </div>
+    {capApplied && (
+      <button
+        onClick={() => setShowAll(true)}
+        className="w-full h-9 text-caption tracking-chip uppercase font-semibold text-brand hover:bg-brand-tint border-t border-border-subtle transition-colors duration-80"
+      >
+        + {filtered.length - DEFAULT_ROW_LIMIT} more rows · show all
+      </button>
+    )}
+    {query && filtered.length === 0 && (
+      <div className="px-5 py-8 flex flex-col items-center justify-center gap-2 text-text-muted border-t border-border-subtle">
+        <div className="text-small">No rows match <code className="font-mono text-text-secondary">{query}</code>.</div>
+        <button
+          onClick={() => setQuery("")}
+          className="text-caption tracking-chip uppercase text-brand hover:underline"
+        >
+          clear search
+        </button>
+      </div>
+    )}
     </div>
+  );
+}
+
+// ── Table filter bar — search input + matched/total count ─────────────
+function TableFilterBar({
+  query,
+  onQuery,
+  total,
+  matched,
+  onClear,
+}: {
+  query: string;
+  onQuery: (v: string) => void;
+  total: number;
+  matched: number;
+  onClear: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-2 border-b border-border-subtle bg-canvas">
+      <div className="flex items-center gap-2 flex-1 max-w-md">
+        <Search size={13} className="text-text-muted shrink-0" aria-hidden />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          placeholder="filter rows…"
+          className="flex-1 h-7 bg-transparent text-small font-mono outline-none placeholder:text-text-muted/70"
+        />
+        {query && (
+          <button
+            onClick={onClear}
+            className="kicker text-text-muted hover:text-text-secondary shrink-0"
+            aria-label="clear search"
+          >
+            clear
+          </button>
+        )}
+      </div>
+      <span className="ml-auto text-caption tracking-chip uppercase text-text-muted tabular font-mono">
+        {query ? `${matched} / ${total}` : `${total} rows`}
+      </span>
+    </div>
+  );
+}
+
+// ── Row detail panel — expanded view shown when the user clicks a row ──
+//
+// Two jobs:
+//   1. Dump the row's raw key-value pairs so the user can see everything
+//      the table summarized away. Generic, no per-skill config.
+//   2. Surface row_actions as full-width buttons rather than buried in an
+//      ellipsis menu — once a user has drilled in, next-step actions are
+//      the obvious next thing to see.
+function RowDetail({
+  row,
+  columns,
+  actions,
+  onAction,
+}: {
+  row: unknown;
+  columns: Column[];
+  actions?: RowAction[];
+  onAction?: (cmd: string) => void;
+}) {
+  const entries = useMemo(() => {
+    if (row == null || typeof row !== "object") {
+      return [{ key: "value", value: row }];
+    }
+    return Object.entries(row as Record<string, unknown>).map(([key, value]) => ({
+      key,
+      value,
+    }));
+  }, [row]);
+  // Columns are already shown in the row's collapsed form, so emphasize
+  // the *extra* fields in the detail view. Keep all fields visible
+  // though — users often need the "hidden" ones.
+  const primaryKeys = new Set(columns.map((c) => c.key.split(".")[0]));
+
+  return (
+    <div className="space-y-3">
+      <dl className="grid grid-cols-[140px_1fr] gap-x-5 gap-y-1.5 text-small">
+        {entries.map(({ key, value }) => {
+          const isPrimary = primaryKeys.has(key);
+          return (
+            <div key={key} className="contents">
+              <dt
+                className={cn(
+                  "kicker text-right pt-0.5",
+                  isPrimary ? "text-text-muted" : "text-text-secondary font-semibold",
+                )}
+              >
+                {key}
+              </dt>
+              <dd className="font-mono text-text-primary break-words">
+                <DetailValue v={value} />
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+      {actions && actions.length > 0 && onAction && (
+        <div className="flex flex-wrap gap-2 pt-1.5 border-t border-border-subtle">
+          {actions.map((a, idx) => {
+            const resolved = a.command.replace(/\$\{([^}]+)\}/g, (m, p: string) => {
+              const v = resolveKey(row, p);
+              return v == null || v === "" ? m : String(v);
+            });
+            const broken = resolved.includes("${");
+            return (
+              <button
+                key={idx}
+                disabled={broken}
+                onClick={() => onAction(resolved)}
+                title={resolved}
+                className={cn(
+                  "inline-flex items-center h-7 px-3 rounded-full text-caption tracking-chip uppercase font-semibold",
+                  "border transition-colors duration-80",
+                  broken
+                    ? "opacity-40 cursor-not-allowed border-border-subtle text-text-muted"
+                    : "border-brand bg-brand text-white hover:bg-brand-strong",
+                )}
+              >
+                {a.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailValue({ v }: { v: unknown }) {
+  if (v == null) return <span className="text-text-muted">—</span>;
+  if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+    return <>{String(v)}</>;
+  }
+  // Objects & arrays: pretty-print but bounded height. Click to expand further.
+  return (
+    <pre className="whitespace-pre-wrap break-all text-[12px] text-text-secondary max-h-40 overflow-auto">
+      {JSON.stringify(v, null, 2)}
+    </pre>
   );
 }
 

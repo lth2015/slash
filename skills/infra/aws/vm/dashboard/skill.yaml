@@ -1,0 +1,44 @@
+apiVersion: slash/v1
+kind: Skill
+metadata:
+  id: infra.aws.vm.dashboard
+  name: "EC2 instance dashboard (24h)"
+  description: "CPU + network in/out over 24 hours in one go. CloudWatch's get-metric-data, one call, three curves."
+  version: 0.1.0
+  labels: { stability: alpha, risk: low }
+
+spec:
+  command: { namespace: infra, target: aws, noun: [vm], verb: dashboard }
+  mode: read
+  timeout: 45s
+  profile: { kind: aws, required: true }
+
+  args:
+    - { name: id,     type: string, positional: true, required: true }
+    - { name: region, flag: --region, type: string, default: "us-east-1" }
+    - { name: hours,  flag: --hours,  type: int,    default: 24 }
+    - { name: period, flag: --period, type: int,    default: 300 }
+
+  bash:
+    # get-metric-data accepts a JSON array of queries in one argv element.
+    # One CLI call → three time-aligned series. The JSON is a single string
+    # with ${id} interpolated; argv-safe (value never touches a shell).
+    # AWS docs: CloudWatch/MetricDataQuery semantics.
+    argv:
+      - aws
+      - cloudwatch
+      - get-metric-data
+      - --start-time
+      - "-${hours}h"
+      - --end-time
+      - "now"
+      - --region
+      - "${region}"
+      - --output
+      - json
+      - --metric-data-queries
+      - '[{"Id":"cpu","Label":"CPU %","MetricStat":{"Metric":{"Namespace":"AWS/EC2","MetricName":"CPUUtilization","Dimensions":[{"Name":"InstanceId","Value":"${id}"}]},"Period":${period},"Stat":"Average"}},{"Id":"netin","Label":"NetIn B/s","MetricStat":{"Metric":{"Namespace":"AWS/EC2","MetricName":"NetworkIn","Dimensions":[{"Name":"InstanceId","Value":"${id}"}]},"Period":${period},"Stat":"Average"}},{"Id":"netout","Label":"NetOut B/s","MetricStat":{"Metric":{"Namespace":"AWS/EC2","MetricName":"NetworkOut","Dimensions":[{"Name":"InstanceId","Value":"${id}"}]},"Period":${period},"Stat":"Average"}}]'
+
+  output:
+    parse: json
+    kind: multi-metric-chart

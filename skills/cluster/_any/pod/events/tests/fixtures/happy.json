@@ -1,0 +1,31 @@
+{
+  "items": [
+    {
+      "lastTimestamp": "2026-04-24T02:11:07Z",
+      "type": "Warning",
+      "reason": "BackOff",
+      "involvedObject": {"kind": "Pod", "name": "web-7c9f-xyz"},
+      "message": "Back-off restarting failed container",
+      "metadata": {"namespace": "api"},
+      "count": 7
+    },
+    {
+      "lastTimestamp": "2026-04-24T02:10:33Z",
+      "type": "Warning",
+      "reason": "Unhealthy",
+      "involvedObject": {"kind": "Pod", "name": "web-7c9f-xyz"},
+      "message": "Liveness probe failed: HTTP 503",
+      "metadata": {"namespace": "api"},
+      "count": 3
+    },
+    {
+      "lastTimestamp": "2026-04-24T02:09:12Z",
+      "type": "Normal",
+      "reason": "Created",
+      "involvedObject": {"kind": "Pod", "name": "web-7c9f-xyz"},
+      "message": "Created container web",
+      "metadata": {"namespace": "api"},
+      "count": 1
+    }
+  ]
+}
