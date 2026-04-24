@@ -140,21 +140,17 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
   onSubmitRef.current = onSubmit;
   onValRef.current = onValueChange;
 
-  // Track the last text we reported up to the parent AND whether the parent
-  // has acknowledged it (by sending it back as a value prop). The sync
-  // effect uses this pair to distinguish three scenarios:
-  //   A. fast typing — parent's value prop is lagging behind our latest
-  //      listener report. Any intermediate prop is an echo in transit; do
-  //      NOT overwrite the editor with it (would drop characters).
-  //   B. parent has caught up — value prop equals our last report. Mark the
-  //      channel "in sync" so subsequent mismatches count as genuine
-  //      external updates.
-  //   C. external update (suggestion click, submit clears via setText(""),
-  //      meta-command fill) — value prop differs from our last report AND
-  //      the channel is in sync. Sync the new value into the editor.
-  // Without this, `/ctx list` becomes `/ list` under fast typing.
+  // Tracks what we last reported up to the parent. The sync effect uses
+  // this to tell apart:
+  //   A. parent-side lag during fast typing — incoming value is an older
+  //      prefix of what we already reported, so it's an echo in transit;
+  //      dropping it prevents overwriting the editor back to a shorter
+  //      version (the `/ctx list` → `/ list` bug).
+  //   B. no-op echo — incoming value equals what we reported; ignore.
+  //   C. genuine external update — incoming value is "", or some string
+  //      that isn't a prefix of our report (suggestion click, submit-
+  //      clear, meta fill). Sync it into the editor.
   const lastReportedRef = useRef(value);
-  const parentCaughtUpRef = useRef(true);
 
   // Latest copies for key handlers that live inside the one-time effect.
   const openRef = useRef(open);
@@ -304,7 +300,6 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
       if (!u.docChanged) return;
       const text = u.state.doc.toString();
       lastReportedRef.current = text;
-      parentCaughtUpRef.current = false;
       onValRef.current(text);
       if (debounce) clearTimeout(debounce);
       if (!text.trim()) {
@@ -410,18 +405,21 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
     const v = viewRef.current;
     if (!v) return;
     const current = v.state.doc.toString();
-    if (current === value) {
-      parentCaughtUpRef.current = true;
-      return;
-    }
-    if (value === lastReportedRef.current) {
-      // B: parent has caught up to what we reported. Flag the channel as
-      // synced so subsequent mismatches are genuine external updates.
-      parentCaughtUpRef.current = true;
-      return;
-    }
-    if (!parentCaughtUpRef.current) {
-      // A: parent-side lag — skip until it catches up.
+    // B: no-op — editor already shows this value.
+    if (current === value) return;
+    // B: echo — parent is repeating what we just reported.
+    if (value === lastReportedRef.current) return;
+    // A: parent-side lag — value is an older *strict* prefix of what we
+    // last reported. This only happens when the user is typing faster
+    // than React can flush; the parent's value prop is catching up,
+    // carrying intermediate states. Skip — next render will catch up.
+    // Empty string is NOT treated as lag: it's how submit/meta fills
+    // clear the bar deliberately.
+    if (
+      value.length > 0 &&
+      value.length < lastReportedRef.current.length &&
+      lastReportedRef.current.startsWith(value)
+    ) {
       return;
     }
     // C: genuine external update. Sync into the editor, pull focus back
@@ -445,12 +443,6 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
       el.classList.add("snippet-flash");
       window.setTimeout(() => el.classList.remove("snippet-flash"), 520);
     }
-    // dispatch fired our own listener synchronously, which flipped
-    // parentCaughtUpRef to false. But this update ORIGINATED from a value
-    // we just received from the parent — the channel is in sync by
-    // construction. Restore the flag so the NEXT parent update (e.g.
-    // submit-clearing to "") won't be mistaken for lag and ignored.
-    parentCaughtUpRef.current = true;
     if (value) v.focus();
   }, [value]);
 
