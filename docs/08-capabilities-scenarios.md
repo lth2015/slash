@@ -2,7 +2,7 @@
 
 > **输入**：[todo-v2.md](../todo-v2.md) 给出的下一阶段目标——基于 53 条原子命令构建"能力 / 场景"，验证原子层是否足够，并在真实使用中发现新的原子需求。
 >
-> **状态**：规划稿。未实现。需要用户 review 并选择走哪条路再开始编码。**不是已定方案**。
+> **状态**：✅ APPROVED 2026-04-24。§8 全部决策点按本文提议执行（YAML manifest / 窄 DSL / Markdown 场景 / 只 GitLab / M1→M2→M3）。规范文档在 [docs/09](./09-capabilities.md) 和 [docs/10](./10-scenarios.md)。
 
 ## 0. TL;DR
 
