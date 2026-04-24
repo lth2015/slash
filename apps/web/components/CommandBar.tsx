@@ -140,6 +140,22 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
   onSubmitRef.current = onSubmit;
   onValRef.current = onValueChange;
 
+  // Track the last text we reported up to the parent AND whether the parent
+  // has acknowledged it (by sending it back as a value prop). The sync
+  // effect uses this pair to distinguish three scenarios:
+  //   A. fast typing — parent's value prop is lagging behind our latest
+  //      listener report. Any intermediate prop is an echo in transit; do
+  //      NOT overwrite the editor with it (would drop characters).
+  //   B. parent has caught up — value prop equals our last report. Mark the
+  //      channel "in sync" so subsequent mismatches count as genuine
+  //      external updates.
+  //   C. external update (suggestion click, submit clears via setText(""),
+  //      meta-command fill) — value prop differs from our last report AND
+  //      the channel is in sync. Sync the new value into the editor.
+  // Without this, `/ctx list` becomes `/ list` under fast typing.
+  const lastReportedRef = useRef(value);
+  const parentCaughtUpRef = useRef(true);
+
   // Latest copies for key handlers that live inside the one-time effect.
   const openRef = useRef(open);
   const hlRef = useRef(highlight);
@@ -287,6 +303,8 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
     const listener = EditorView.updateListener.of((u) => {
       if (!u.docChanged) return;
       const text = u.state.doc.toString();
+      lastReportedRef.current = text;
+      parentCaughtUpRef.current = false;
       onValRef.current(text);
       if (debounce) clearTimeout(debounce);
       if (!text.trim()) {
@@ -384,13 +402,44 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync external value (e.g. suggestion click from empty state)
+  // Sync *external* value changes into the editor (suggestion clicks,
+  // /clear via props, meta-command fills, submit clearing to ""). We
+  // classify each incoming prop against our report/ack channel state —
+  // see lastReportedRef / parentCaughtUpRef above for the scenarios.
   useEffect(() => {
     const v = viewRef.current;
     if (!v) return;
     const current = v.state.doc.toString();
-    if (current === value) return;
-    v.dispatch({ changes: { from: 0, to: current.length, insert: value } });
+    if (current === value) {
+      parentCaughtUpRef.current = true;
+      return;
+    }
+    if (value === lastReportedRef.current) {
+      // B: parent has caught up to what we reported. Flag the channel as
+      // synced so subsequent mismatches are genuine external updates.
+      parentCaughtUpRef.current = true;
+      return;
+    }
+    if (!parentCaughtUpRef.current) {
+      // A: parent-side lag — skip until it catches up.
+      return;
+    }
+    // C: genuine external update. Sync into the editor, move caret to the
+    // end, and pull focus back — suggestion clicks / chip clicks otherwise
+    // leave focus on the DOM button, which would make Enter re-click it
+    // instead of running the command now in the bar.
+    lastReportedRef.current = value;
+    v.dispatch({
+      changes: { from: 0, to: current.length, insert: value },
+      selection: { anchor: value.length },
+    });
+    // dispatch fired our own listener synchronously, which flipped
+    // parentCaughtUpRef to false. But this update ORIGINATED from a value
+    // we just received from the parent — the channel is in sync by
+    // construction. Restore the flag so the NEXT parent update (e.g.
+    // submit-clearing to "") won't be mistaken for lag and ignored.
+    parentCaughtUpRef.current = true;
+    if (value) v.focus();
   }, [value]);
 
   return (

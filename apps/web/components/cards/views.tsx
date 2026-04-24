@@ -168,10 +168,16 @@ function EventRow({
   const objKind = event.involvedObject?.kind ?? "";
   const objName = event.involvedObject?.name ?? "";
   const count = event.count && event.count > 1 ? event.count : null;
-  const hasActions = !!(rowActions && rowActions.length && onAction);
+  // Pod-specific row_actions are nonsensical for Node / Service / etc. events
+  // — skip them there. Also hide actions on benign Normal events to cut
+  // visual noise; the user wants to act on what looks broken. Hovering /
+  // focusing the row reveals them either way (see `group` classes below).
+  const podScoped = objKind === "Pod" || objKind === "";
+  const hasActions =
+    !!(rowActions && rowActions.length && onAction) && podScoped;
 
   return (
-    <li className="relative pl-7">
+    <li className="group relative pl-7">
       {/* dot + line */}
       <span
         aria-hidden
@@ -211,21 +217,33 @@ function EventRow({
           </p>
         )}
         {hasActions && (
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
+          // Reveal-on-hover: 63-event timelines get unbearable when every
+          // row carries three always-on chips. Keep the chip row hidden by
+          // default and fade it in only when the user shows intent (mouse
+          // hover or keyboard focus). On touch devices without :hover we
+          // fall back to always-visible via a media query override below.
+          <div
+            className={cn(
+              "mt-1.5 flex flex-wrap gap-1.5",
+              "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+              "transition-opacity duration-160",
+              // always visible on coarse pointers (touch) where hover doesn't apply
+              "[@media(hover:none)]:opacity-100",
+            )}
+          >
             {rowActions!.map((a, idx) => {
               const resolved = interpolate(a.command, event);
               const broken = resolved.includes("${");
+              if (broken) return null;
               return (
                 <button
                   key={idx}
-                  disabled={broken}
                   onClick={() => onAction!(resolved)}
                   className={cn(
                     "inline-flex items-center h-6 px-2.5 rounded-full text-caption tracking-chip",
                     "border bg-surface-sub transition-colors duration-80",
-                    broken
-                      ? "opacity-40 cursor-not-allowed border-border-subtle text-text-muted"
-                      : "border-border text-text-secondary hover:bg-brand-tint hover:border-brand hover:text-brand",
+                    "border-border text-text-secondary",
+                    "hover:bg-brand-tint hover:border-brand hover:text-brand",
                   )}
                   title={resolved}
                 >
