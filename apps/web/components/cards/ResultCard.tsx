@@ -1151,6 +1151,20 @@ function num(v: unknown): number | null {
 
 // ── Log ────────────────────────────────────────────────────────────────
 function LogView({ text }: { text: string }) {
+  // Empty or whitespace-only output is common ("no logs in window",
+  // successful writes that emit nothing, etc.) and shouldn't render as
+  // a blank grey rectangle — which looks like a UI bug.
+  if (!text || !text.trim()) {
+    return (
+      <div className="px-5 py-8 flex flex-col items-center justify-center gap-2 text-text-muted">
+        <Inbox size={22} strokeWidth={1.8} aria-hidden />
+        <div className="text-small">No output.</div>
+        <div className="text-caption text-text-muted/80">
+          Command ran cleanly — but the process didn&apos;t print anything in the window.
+        </div>
+      </div>
+    );
+  }
   const lines = text.split("\n");
   return (
     <div className="bg-surface-sub p-4 font-mono text-[12.5px] leading-[1.6] max-h-[28rem] overflow-auto">
