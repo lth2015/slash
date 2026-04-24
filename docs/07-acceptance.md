@@ -2,6 +2,15 @@
 
 > 目的：逐项过一遍本版本新增的 skill / 视图 / 交互 / 修复。每项给"怎么触发"和"期望看到什么"。不通过就在条目下写一行"问题：…"，我按你写的优化。
 
+> **v0.6.1（自动交互扫雷）**：你午休期间我自己扫了一遍交互面，发现并修了这些问题，已 push master。下面验收时这些应该已经是正常行为：
+> - **CommandBar 快速输入丢字符**（核心 bug）：`/ctx list` 快速敲会变成 `/ list`。已用 prefix-detection 重写 sync 逻辑（stateless，更简单更健壮）。
+> - **CommandBar 输入框点击 chip 后 Enter 不执行**：焦点留在按钮，Enter 变成重新点按钮。现在外部 fill 会拉回 editor focus。
+> - **CommandBar 提交后没清空**：fast-type + 立即 submit 场景下，bar 会卡住显示刚跑完的命令。已修。
+> - **`/help` chip 占位符不自动选中**：点"/cluster pod events <pod>..."后需要手动选 `<pod>` 才能替换。现在自动选中第一个 `<>` 占位符，输入即替换，Tab 跳下一个。
+> - **`/help` 关键词覆盖不够**：crashloop / oom / imagepullbackoff / 根因 等 SRE 词不命中。补了 ~14 对同义词。
+> - **EventTimeline 噪音大**：每行 3 个 action chip，非 Pod 事件的 chip 甚至是不适用的。改为 Pod 事件 only + hover 显现。
+> - **LogView 空输出白板**：`/cluster logs --since 1m` 没输出时渲染成灰色空矩形像 bug。改成 "No output" 空状态。
+
 ## 前置
 
 - [ ] Web 可达：http://127.0.0.1:4455 （LAN：`http://<你的 IP>:4455`）
