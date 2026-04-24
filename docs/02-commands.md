@@ -114,6 +114,15 @@ Ctx 解析：每条命令都接受可选 `--ctx <name>` 覆盖，否则读 sessi
 
 > kubectl 路线的好处：`/app` 命令和 `/cluster` 共享 k8s profile、`--ctx` 语义、argv-safety；skill YAML 只是 `/cluster` 的更高级视角（target = 一个 app 而非一个原子资源）。
 
+### Meta commands（不走严格 DSL）
+
+两条 `/`-命令是客户端 meta 指令，**不**经过 parser / runtime，也不触发 HITL。它们在 CommandBar 里会走短路路径，不会红线报错：
+
+| 命令 | 作用 | 实现位置 |
+| --- | --- | --- |
+| `/clear` | 清空对话流视图。审计追加文件 `.slash/audit/audit.jsonl` **不会**被清掉——历史还可以通过 `/ops audit logs` 查询 | `page.tsx` 客户端拦截 |
+| `/help [自然语言问题]` | 只读自助：把当前 skill registry 喂给 Gemini 2.5 Flash，让它用自然语言回答"这个工具能做什么""我想做 X 该用哪条命令"。返回的 `suggested_commands` 必须来自真实 catalog（server 侧白名单过滤），点击只填入 CommandBar，**永不自动执行**。LLM 关闭时走确定性 fallback：分 namespace 列出前几条 read skill | `routers/help.py` + `page.tsx` |
+
 ### 4.5 `/ctx`（会话上下文 · 内建 skill，已实现）
 
 不走外部 CLI，读/写 `var/state.json` 里的 pin 状态，供 `/cluster`、`/infra aws`、`/infra gcp` 的严格 ctx 校验使用。

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from slash_api import __version__
-from slash_api.routers import approvals, audit, context, execute, explain, health, parse, skills
+from slash_api.routers import approvals, audit, context, execute, explain, health, help, parse, skills
 
 app = FastAPI(
     title="Slash API",
@@ -35,6 +35,7 @@ app.include_router(context.router)
 app.include_router(execute.router)
 app.include_router(approvals.router)
 app.include_router(explain.router)
+app.include_router(help.router)
 app.include_router(audit.router)
 
 

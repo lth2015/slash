@@ -13,9 +13,20 @@ import { RunCard } from "@/components/cards/RunCard";
 import { UserCommandRow } from "@/components/cards/UserCommandRow";
 import { TurnPhaseBar, readPhases, writePhases } from "@/components/TurnPhaseBar";
 
+export interface HelpPayload {
+  question: string;           // the original question, e.g. "how do I scale a deploy?"
+  llm_used: boolean;
+  model?: string | null;
+  summary: string;
+  highlights?: string[];
+  suggested_commands?: string[];
+  reason_unavailable?: string | null;
+}
+
 export type Turn =
   | { kind: "read"; command: string; result: ResultPayload; llm?: LlmSummary }
   | { kind: "error"; command: string; error: ErrorPayload }
+  | { kind: "help"; command: string; help: HelpPayload }
   | {
       kind: "write";
       command: string;
@@ -108,6 +119,26 @@ function TurnView({
           ]}
         />
         <ErrorCard error={turn.error} onSuggestionClick={onSuggestionClick} />
+      </section>
+    );
+  }
+  if (turn.kind === "help") {
+    return (
+      <section className="space-y-3">
+        <UserCommandRow text={turn.command} />
+        <LlmSummaryCard
+          data={{
+            model: turn.help.llm_used ? (turn.help.model || undefined) : "static · llm off",
+            summary: turn.help.summary,
+            highlights: turn.help.highlights ?? [],
+            findings: turn.help.reason_unavailable
+              ? [{ level: "info", detail: turn.help.reason_unavailable }]
+              : [],
+            suggested_commands: turn.help.suggested_commands ?? [],
+            divergence_warnings: [],
+          }}
+          onSuggestionClick={onSuggestionClick}
+        />
       </section>
     );
   }

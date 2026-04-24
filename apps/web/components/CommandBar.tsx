@@ -30,21 +30,33 @@ export type ParseStatus =
   | { kind: "parsing" }
   | { kind: "ok"; skillId: string; mode: "read" | "write"; danger: boolean }
   | { kind: "error"; code: string; message: string; offset: number; length: number; suggestions: string[] }
-  // Client-side meta commands — UI view control only. They never touch the
-  // parser, the runner, or the audit log. Today: `/clear` to wipe the
-  // conversation view.
-  | { kind: "meta"; command: "clear"; hint: string };
+  // Client-side meta commands — view control or help, distinct from the
+  // strict-DSL skills. Today:
+  //   /clear         — wipe the conversation view
+  //   /help [...]    — natural-language catalog assistant (LLM-backed,
+  //                    read-only; the answer is suggestions, not execution)
+  | { kind: "meta"; command: "clear" | "help"; hint: string; rest?: string };
 
-/** Literal meta commands recognized in the CommandBar. Kept in one place so
- *  the listener, StatusLine, and page.tsx submit handler agree on the set. */
-export const META_COMMANDS: Record<string, string> = {
-  "/clear": "wipe the conversation view (audit keeps its receipts)",
-};
+export type MetaCommand =
+  | { id: "clear"; rest: "" }
+  | { id: "help"; rest: string };
 
-export function isMetaCommand(text: string): string | null {
+/** Parse a CommandBar input for a recognized meta command. Returns null if
+ *  the text is not a meta command. `rest` carries any payload after the
+ *  command word (used by /help to pass the user's natural-language
+ *  question through). */
+export function isMetaCommand(text: string): MetaCommand | null {
   const t = text.trim();
-  return t in META_COMMANDS ? t : null;
+  if (t === "/clear") return { id: "clear", rest: "" };
+  if (t === "/help") return { id: "help", rest: "" };
+  if (t.startsWith("/help ")) return { id: "help", rest: t.slice(6).trim() };
+  return null;
 }
+
+const META_HINTS: Record<MetaCommand["id"], string> = {
+  clear: "wipe the conversation view (audit keeps its receipts)",
+  help: "ask Slash anything — catalog tour, command discovery",
+};
 
 interface Props {
   value: string;
@@ -284,13 +296,14 @@ export function CommandBar({ value, onValueChange, onSubmit, statusRef, disabled
       }
       // Meta commands short-circuit the parser: no red wavy underline for
       // "UnknownNamespace", just a soft hint in the status line.
-      const metaCmd = isMetaCommand(text);
-      if (metaCmd) {
+      const meta = isMetaCommand(text);
+      if (meta) {
         u.view.dispatch({ effects: [setModeEffect.of({}), setErrorEffect.of(null)] });
         setStatus({
           kind: "meta",
-          command: "clear",
-          hint: META_COMMANDS[metaCmd],
+          command: meta.id,
+          hint: META_HINTS[meta.id],
+          rest: meta.rest,
         });
         return;
       }
@@ -482,15 +495,21 @@ function StatusLine({ status }: { status: ParseStatus }) {
         </span>
       )}
       {status.kind === "meta" && (
-        <span className="flex items-center gap-2 text-text-primary">
+        <span className="flex items-center gap-2 text-text-primary flex-wrap">
           <span
             className="inline-flex items-center h-5 px-2 rounded-full text-caption tracking-chip uppercase font-semibold bg-brand-soft text-brand-strong"
           >
-            meta
+            {status.command === "help" ? "help · llm" : "meta"}
           </span>
           <span className="text-text-secondary">press</span>
           <kbd className="px-1.5 h-5 inline-flex items-center rounded border border-border-subtle bg-surface-sub font-mono text-caption">↵</kbd>
           <span className="text-text-secondary">to {status.hint}</span>
+          {status.command === "help" && status.rest && (
+            <>
+              <span className="text-border">·</span>
+              <span className="text-text-secondary italic">question: &ldquo;{status.rest.slice(0, 60)}{status.rest.length > 60 ? "…" : ""}&rdquo;</span>
+            </>
+          )}
         </span>
       )}
       {status.kind === "error" && (

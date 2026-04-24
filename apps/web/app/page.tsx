@@ -20,12 +20,56 @@ export default function Home() {
     // Clear input for next turn
     setText("");
 
-    // Meta commands — client-side view control, never hit the parser, the
-    // runner, or the audit log. Today: `/clear` wipes the conversation view;
-    // audit.jsonl keeps the receipts so "did I run that" is still answerable
-    // via `/ops audit logs`.
-    if (isMetaCommand(command) === "/clear") {
+    // Meta commands — distinct from the strict-DSL skills.
+    //   /clear         : pure client-side, wipes the conversation view.
+    //                    Audit is append-only, so past runs stay queryable
+    //                    via `/ops audit logs`.
+    //   /help [...]    : LLM-backed catalog assistant. Read-only — suggested
+    //                    commands fill the CommandBar, never auto-run.
+    const meta = isMetaCommand(command);
+    if (meta?.id === "clear") {
       setTurns([]);
+      return;
+    }
+    if (meta?.id === "help") {
+      try {
+        const r = await fetch("/api/help", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ question: meta.rest }),
+        });
+        const body = await r.json();
+        setTurns((t) => [
+          ...t,
+          {
+            kind: "help",
+            command,
+            help: {
+              question: meta.rest,
+              llm_used: !!body?.llm_used,
+              model: body?.model ?? null,
+              summary: String(body?.summary ?? ""),
+              highlights: Array.isArray(body?.highlights) ? body.highlights : [],
+              suggested_commands: Array.isArray(body?.suggested_commands)
+                ? body.suggested_commands
+                : [],
+              reason_unavailable: body?.reason_unavailable ?? null,
+            },
+          },
+        ]);
+      } catch (e) {
+        setTurns((t) => [
+          ...t,
+          {
+            kind: "error",
+            command,
+            error: {
+              code: "NetworkError",
+              message: String(e instanceof Error ? e.message : e),
+            },
+          },
+        ]);
+      }
       return;
     }
 
